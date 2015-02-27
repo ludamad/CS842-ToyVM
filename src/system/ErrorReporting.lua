@@ -213,5 +213,4 @@ end
 
 AnsiColors = require "system.AnsiColors" -- Lazy import
 
-print(M.traceback(''))
 return M

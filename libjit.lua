@@ -57,7 +57,7 @@ end
 
 function M.Function:free() 
     libjit.jit_type_free(self.signature)
-    self:destroy() 
+    --self:destroy() 
 end
 
 function M.Function:_return(value)

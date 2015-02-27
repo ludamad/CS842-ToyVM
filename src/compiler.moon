@@ -92,7 +92,9 @@ M.FunctionBuilder = newtype {
         fargs = {}
         for i=1,#args
             fargs[i] = @compileNode(args[i])
-        @call(value, func.value, @frame(fargs))
+        frame = @frame(fargs)
+        print "Calling"
+        @call(value, func.value, frame)
 
     compileNode: (node) =>
         print "Compiling #{astToString(node)}"
@@ -101,9 +103,10 @@ M.FunctionBuilder = newtype {
         return val
     frame: (values) =>
         frame = @create(frameType(#values))
+        framePtr = @addressOf(frame)
         for i=1,#values
-            @storeRelative(frame, (i-1)*8, values[i])
-        return {frame, #values}
+            @storeRelative(framePtr, (i-1)*8, values[i])
+        return {frame, @createLongConstant(lj.ulong, #values)}
 
     compileAst: (ast) =>
         @ljContext\buildStart()

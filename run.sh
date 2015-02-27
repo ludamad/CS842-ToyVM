@@ -1,1 +1,5 @@
-luajit loader.lua
+if [$DEBUG] ; then 
+    gdb --args luajit loader.lua
+else 
+    luajit loader.lua
+fi
