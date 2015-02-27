@@ -18,6 +18,11 @@ local function table2ffi(table, type)
     return ctype
 end 
 
+function M.createStruct(types)
+    local ctypes = table2ffi(types, "jit_type_t[?]")
+    return libjit.jit_type_create_struct(ctypes, #types, 0)
+end
+
 M.NativeFunction = newtype()
 function M.NativeFunction:init(func, returnT, paramsT)
     self.func = func

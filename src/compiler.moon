@@ -3,10 +3,7 @@ ffi = require "ffi"
 lj = require "libjit"
 
 ffi.cdef [[
-    typedef struct {
-        int parts[2];
-    } LangValue;
-    typedef uint64_t (*LangRuntimeFunc1)(uint64_t);
+    typedef uint64_t (*LangRuntimeFunc)(uint64_t* args, unsigned long n);
 ]]
 
 import astToString from require "parser"
@@ -54,6 +51,13 @@ vcast = (val) -> fficast("void*", val)
 label1, label2 = ffi.new("jit_label_t[1]"), ffi.new("jit_label_t[1]")
 int1, int2, result = ffi.new("jit_uint[1]", 21), ffi.new("jit_uint[1]", 42), ffi.new("jit_uint[1]", 0)
 
+__frameCache = {}
+frameType = (n) ->
+    if not __frameCache[n]
+        types = [lj.ulong for i=1,n]
+        __frameCache[n] = lj.createStruct(types)
+    return __frameCache[n]
+
 
 TYPE_TAG_INT = 1
 M.FunctionBuilder = newtype {
@@ -61,8 +65,7 @@ M.FunctionBuilder = newtype {
     init: (@ljContext, @params, @scope = M.Scope()) =>
         ljParamTypes = {}
         for i=1,#@params
-            ljParamTypes[i] = lj.ptr
-        print('lj',lj.ulong)
+            ljParamTypes[i] = lj.ulong
         lj.Function.init(@, @ljContext, lj.ulong, ljParamTypes)
         for i=1,#@params
             {:var} = @params[i]
@@ -76,10 +79,11 @@ M.FunctionBuilder = newtype {
             return var.constantValue
         return var.valuA
     IntLit: (node) =>
-        val = ffi.new("LangValue")
-        val.parts[0] = tonumber(node.value)
-        val.parts[1] = TYPE_TAG_INT
-        return @createLongConstant(lj.ulong, ffi.cast("uint64_t", val))
+        val = ffi.new("uint64_t[1]")
+        int_view = ffi.cast("int*", val)
+        int_view[0] = tonumber(node.value)
+        int_view[1] = TYPE_TAG_INT
+        return @createLongConstant(lj.ulong, val[0])
 
     -- AST node handlers:
     FuncCall: (node) =>
@@ -88,15 +92,24 @@ M.FunctionBuilder = newtype {
         fargs = {}
         for i=1,#args
             fargs[i] = @compileNode(args[i])
-        @call(value, func.value, fargs)
+        @call(value, func.value, @frame(fargs))
 
     compileNode: (node) =>
         print "Compiling #{astToString(node)}"
-        @[node.kind](@,node)
+        val = @[node.kind](@,node)
+        print "Compiled #{astToString(node)}"
+        return val
+    frame: (values) =>
+        frame = @create(frameType(#values))
+        for i=1,#values
+            @storeRelative(frame, (i-1)*8, values[i])
+        return {frame, #values}
+
     compileAst: (ast) =>
         @ljContext\buildStart()
         for node in *ast
             @compileNode(node)
+        @compile()
         @ljContext\buildEnd()
     callFromLua: (values, ret) =>
         for i=1,#values

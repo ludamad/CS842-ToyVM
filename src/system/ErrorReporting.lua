@@ -55,7 +55,9 @@ local M -- Forward declare for inner functions
 M = {
     filter_patterns = {
         -- Lines to delete starting with this line and going up
-        [modulestart "ErrorReporting%.lua"] = 1,
+        [".*/ErrorReporting%.lua"] = 1,
+        ["%s*loader%.lua"] = 1,
+        ["%s*%[C%]"] = 1,
         [modulestart "main%.lua.*__index"] = 1,
         [modulestart "GlobalVariableLoader%.lua:.*'__index'"] = 1,
         [modulestart "ModuleSystem%.lua:.*'import.*'"] = 1,
@@ -168,9 +170,11 @@ local function resolve_changes(stacktrace, i)
 end
 
 local debug_traceback = debug.traceback -- Stash & wrap the current debug.traceback
+local moon_trace = require("moonscript.errors").rewrite_traceback
+
 -- Improve the traceback in various ways, including adding color and reducing noise:
 function M.traceback(--[[Optional]] str)
-    local traceback = debug_traceback()
+    local traceback = moon_trace(debug_traceback(), str)
     local stacktrace = traceback:split('\n')
     local i = 1
     while i <= #stacktrace do
@@ -190,6 +194,7 @@ function M.traceback(--[[Optional]] str)
     )
 end
 
+
 function M.wrap(f)
     return function(...)
         local args = {...}
@@ -208,4 +213,5 @@ end
 
 AnsiColors = require "system.AnsiColors" -- Lazy import
 
+print(M.traceback(''))
 return M

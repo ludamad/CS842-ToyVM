@@ -79,6 +79,21 @@ function pretty_tostring_compact(v)
     return pretty_tostring(v, nil, true)
 end
 
+-- string trim12 from lua wiki
+function string:trim()
+    local from = self:match"^%s*()"
+    return from > #self and "" or self:match(".*%S", from)
+end
+
+-- Lua string API extension:
+function string:split(sep) 
+    local t = {}
+    self:gsub(("([^%s]+)"):format(sep), 
+        function(s) table.insert(t, s) end
+    )
+    return t 
+end
+
 local __DEBUGGING = true
 function newtype(methods)
     methods = methods or {}
@@ -90,7 +105,7 @@ function newtype(methods)
     if methods.parent ~= nil then
         local unboxed = getmetatable(methods.parent).__index
         for k,v in pairs(unboxed) do 
-            methods[k] = v
+            methods[k] = methods[k] or v
         end
         methods.parent = nil
     end
@@ -101,7 +116,13 @@ function newtype(methods)
         methods.init(val, ...)
         return val
     end
-    typemeta.__newindex = methods
+    function typemeta:__newindex(k, v)
+        if k:find("__") == 1 then
+            rawset(self, k, v)
+        else
+            methods[k] = v
+        end
+    end
     typemeta.__index = methods
     if __DEBUGGING then
         function methodsmeta:__index(k)
