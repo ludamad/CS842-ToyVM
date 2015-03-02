@@ -1,14 +1,10 @@
 ffi = require "ffi"
+runtime = require "runtime"
+gc = require "ggggc"
 
 lj = require "libjit"
 
 VAL_SIZE = 8
-ffi.cdef [[
-    typedef struct {
-        int val, tag;
-    } LangValue;
-    typedef uint64_t (*LangRuntimeFunc)(LangValue* args, unsigned int n);
-]]
 
 import astToString from require "parser"
 
@@ -56,16 +52,16 @@ label1, label2 = ffi.new("jit_label_t[1]"), ffi.new("jit_label_t[1]")
 int1, int2, result = ffi.new("jit_uint[1]", 21), ffi.new("jit_uint[1]", 42), ffi.new("jit_uint[1]", 0)
 
 TYPE_TAG_INT = 1
+
 M.FunctionBuilder = newtype {
     parent: lj.Function
     init: (@ljContext, @params, @scope = M.Scope()) =>
-        ljParamTypes = {}
-        for i=1,#@params
-            ljParamTypes[i] = lj.ulong
-        lj.Function.init(@, @ljContext, lj.ulong, ljParamTypes)
+        lj.Function.init(@, @ljContext, lj.ulong, {lj.ptr, lj.uint})
+        @cfunc = false
+        argsV = @getParam(0)
         for i=1,#@params
             {:var} = @params[i]
-            var.value = @getParam(i-1)
+            var.value = @loadRelative(argsV, 8*(i-1), lj.ulong)
             @scope\declare(var)
     pushScope: () =>
         @scope = M.Scope(@scope)
@@ -81,14 +77,15 @@ M.FunctionBuilder = newtype {
         int_view[1] = TYPE_TAG_INT
         return @createLongConstant(lj.ulong, val[0])
 
-    allocate: () =>
-        @call 
+	-- Allocates a static, gc-managed, pointer
+    allocateLangArray: () =>
+        return @call(runtime.gcMalloc)
         
     -- AST node handlers:
     FuncCall: (node) =>
         {func, args} = node.value
         value = @compileNode(func)
-        print "Calling"
+        logV "Calling"
         @call(value, "", @frame [@compileNode arg for arg in *args])
     frame: (args) =>
         ptr = @alloca(@createLongConstant(lj.ulong, #args * 8))
@@ -96,20 +93,23 @@ M.FunctionBuilder = newtype {
             @storeRelative(ptr, 8*(i-1), args[i]) 
         return {ptr, @createLongConstant(lj.ulong, #args)} 
     compileNode: (node) =>
-        print "Compiling #{astToString(node)}"
+        logV "Compiling #{astToString(node)}"
         val = @[node.kind](@,node)
-        print "Compiled #{astToString(node)}"
+        logV "Compiled #{astToString(node)}"
         return val
 
-    compileAst: (ast) =>
+    compileAsm: (ast) =>
+        @compile()
+        @ljContext\buildEnd()
+    compileIR: (ast) =>
         @ljContext\buildStart()
         for node in *ast
             @compileNode(node)
-        @compile()
-        @ljContext\buildEnd()
-    callFromLua: (values, ret) =>
-        for i=1,#values
-            values[i] = vcast(values[i])
-        @apply(values, vcast(ret))
+    __call: (...) =>
+        args = {...}
+        @cfunc = @cfunc or ffi.cast("LangFunc", @toCFunction())
+        cargs = ffi.new('LangValue[?]', #args)
+        for i=1,#args do cargs[i-1] = args[i]
+        return @.cfunc(cargs, #args)
 }
 return M

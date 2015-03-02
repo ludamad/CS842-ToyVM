@@ -17,6 +17,17 @@ function values(table)
     end
 end
 
+local VERBOSITY = tonumber(os.getenv("V") or '0')
+local DO_VERBOSE = VERBOSITY >= 3
+local DO_INFO = VERBOSITY >= 2
+local DO_LOG = VERBOSITY >= 1
+
+-- Global logging facility:
+function do_nothing() end
+logV = DO_VERBOSE and print or do_nothing
+logI = DO_INFO    and print or do_nothing
+log  = DO_LOG     and print or do_nothing
+
 -- Like C printf, but always prints new line
 function printf(fmt, ...) print(fmt:format(...)) end
 function errorf(fmt, ...) error(fmt:format(...)) end
@@ -101,6 +112,12 @@ function newtype(methods)
     local methodsmeta = {}
     setmetatable(methods, methodsmeta)
     local type = setmetatable({__index = methods}, typemeta)
+    for k,v in pairs(methods) do
+        if k:find("__") == 1 then
+            methods[k] = nil
+            type[k] = v
+        end
+    end
     -- Inheritance:
     if methods.parent ~= nil then
         local unboxed = getmetatable(methods.parent).__index

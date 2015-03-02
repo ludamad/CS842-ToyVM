@@ -7,15 +7,19 @@ import parse, astToString from require "parser"
 
 ljContext = lj.Context()
 
-ast = parse "
-    print(3)
-"
+globalScope = require("runtime").makeGlobalScope()
+compile = (str, dump = false) ->
+    ast = parse(str)
+    funcContext = C.FunctionBuilder(ljContext, {C.Param "a", C.Param "b"}, globalScope)
+    funcContext\compileIR(ast)
+    if dump
+        print('-AST--------------------------------------------------')
+        print(astToString ast)
+        print('-LibJIT IR--------------------------------------------')
+        print(funcContext\dump())
+    funcContext\compileAsm()
+    return funcContext
 
-print(astToString ast)
-scope = require("runtime").makeGlobalScope()
+f = compile "print(3)"
+f()
 
-funcContext = C.FunctionBuilder(ljContext, {C.Param "a", C.Param "b"}, scope)
-funcContext\compileAst(ast)
-print(funcContext\dump())
-funcContext\callFromLua {ffi.new("uint64_t[1]", 42), ffi.new("uint64_t[1]")}, ffi.new("uint64_t[1]")
-funcContext\free()

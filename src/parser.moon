@@ -134,14 +134,14 @@ grammar = MatchGrammar {
     FuncCall: gref._Expr * sym("(") * gref.ExprList * sym(")") /injectArr("FuncCall")
 }
 
-matches = lpeg.match grammar, "
-    print({
-        hi: '', there: 2, 
-        people: 3
-    })
-"
-for m in *matches
-    pretty m
+--matches = lpeg.match grammar, "
+--    print({
+--        hi: '', there: 2, 
+--        people: 3
+--    })
+--"
+--for m in *matches
+--    pretty m
 
 parse = (codeString) -> lpeg.match(grammar, codeString)
 

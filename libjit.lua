@@ -38,7 +38,7 @@ function M.NativeFunction:init(func, returnT, paramsT)
     self.func = func
     local cparams = table2ffi(paramsT, "jit_type_t[?]")
     self.cparams = cparams -- Ensure they are not collected prematurely
-    print("NativeFunction: jit_type_create_signature", C.jit_abi_cdecl, returnT, cparams, #paramsT, 1)
+    logV("NativeFunction: jit_type_create_signature", C.jit_abi_cdecl, returnT, cparams, #paramsT, 1)
     self.signature = libjit.jit_type_create_signature(C.jit_abi_cdecl, returnT, cparams, #paramsT, 1)
 end
 
@@ -46,7 +46,7 @@ M.Function = newtype()
 function M.Function:init(context, returnT, paramsT)
     local cparams = table2ffi(paramsT, "jit_type_t[?]")
     self.cparams = cparams -- Ensure they are not collected prematurely
-    print("Function: jit_type_create_signature", C.jit_abi_cdecl, returnT, cparams, #paramsT, 1)
+    logV("Function: jit_type_create_signature", C.jit_abi_cdecl, returnT, cparams, #paramsT, 1)
     self.signature = libjit.jit_type_create_signature(C.jit_abi_cdecl, returnT, cparams, #paramsT, 1)
     self.func = libjit.jit_function_create(context.context, self.signature)
 end
@@ -61,6 +61,10 @@ function M.Function:call(func, name, args)
     end
 end
 
+function M.Function:toCFunction()
+    return libjit.jit_function_to_closure(self.func)
+end
+
 function M.Function:apply(args, result) 
     return libjit.jit_function_apply(self.func, table2ffi(args, "void*[?]"), result)
 end
@@ -71,7 +75,7 @@ function M.Function:free()
 end
 
 function M.Function:_return(value)
-    print("jit_insn_return", value) 
+    logV("jit_insn_return", value) 
     return libjit.jit_insn_return(self.func, value)
 end
 
@@ -128,7 +132,7 @@ local function compileMethods()
     local header = 'local M, libjit = ...\nlocal ffi = require "ffi"\nlocal C = ffi.C\n'
     local i = 1
     for v in (header .. table.concat(methodSources)):gmatch("([^\n]+)") do
---        print(i, v)
+--        logV(i, v)
         i = i + 1
     end
     local val, err = loadstring(header .. table.concat(methodSources))
@@ -152,7 +156,7 @@ for i, cfuncName in ipairs {
     local methodName = toCamel(drop(cfuncName, "jit_context_"))
     addMethod {
         "function M.Context:", methodName, "(...)\n", 
-            "print('", cfuncName,"', ...)\n", 
+            "logV('", cfuncName,"', ...)\n", 
             "return libjit.", cfuncName, "(self.context, ...)\n",
         "end\n"
     }
@@ -196,7 +200,7 @@ for i, cfuncName in ipairs {
     local methodName = toCamel(drop(cfuncName, "jit_function_"))
     addMethod {
         "function M.Function:", methodName, "(...)\n", 
-            "print('", cfuncName,"', ...)\n", 
+            "logV('", cfuncName,"', ...)\n", 
             "return libjit.", cfuncName, "(self.func, ...)\n",
         "end\n"
     }
@@ -367,7 +371,7 @@ for i, cfuncName in ipairs {
     local methodName = toCamel(drop(cfuncName, "jit_value_", "jit_insn_"))
     addMethod {
         "function M.Function:", methodName, "(...)\n", 
-            "print('", cfuncName,"', ...)\n", 
+            "logV('", cfuncName,"', ...)\n", 
             "return libjit.", cfuncName, "(self.func, ...)\n",
         "end\n"
     }

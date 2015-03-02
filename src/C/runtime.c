@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "ghash.h"
+
 typedef unsigned long long uint64_t;
 
 typedef struct {
