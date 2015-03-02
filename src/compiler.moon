@@ -2,8 +2,12 @@ ffi = require "ffi"
 
 lj = require "libjit"
 
+VAL_SIZE = 8
 ffi.cdef [[
-    typedef uint64_t (*LangRuntimeFunc)(uint64_t* args, unsigned long n);
+    typedef struct {
+        int val, tag;
+    } LangValue;
+    typedef uint64_t (*LangRuntimeFunc)(LangValue* args, unsigned int n);
 ]]
 
 import astToString from require "parser"
@@ -51,14 +55,6 @@ vcast = (val) -> fficast("void*", val)
 label1, label2 = ffi.new("jit_label_t[1]"), ffi.new("jit_label_t[1]")
 int1, int2, result = ffi.new("jit_uint[1]", 21), ffi.new("jit_uint[1]", 42), ffi.new("jit_uint[1]", 0)
 
-__frameCache = {}
-frameType = (n) ->
-    if not __frameCache[n]
-        types = [lj.ulong for i=1,n]
-        __frameCache[n] = lj.createStruct(types)
-    return __frameCache[n]
-
-
 TYPE_TAG_INT = 1
 M.FunctionBuilder = newtype {
     parent: lj.Function
@@ -77,7 +73,7 @@ M.FunctionBuilder = newtype {
         var = @scope\get(node.value)
         if var.isConstant
             return var.constantValue
-        return var.valuA
+        return var.value
     IntLit: (node) =>
         val = ffi.new("uint64_t[1]")
         int_view = ffi.cast("int*", val)
@@ -85,28 +81,25 @@ M.FunctionBuilder = newtype {
         int_view[1] = TYPE_TAG_INT
         return @createLongConstant(lj.ulong, val[0])
 
+    allocate: () =>
+        @call 
+        
     -- AST node handlers:
     FuncCall: (node) =>
         {func, args} = node.value
         value = @compileNode(func)
-        fargs = {}
-        for i=1,#args
-            fargs[i] = @compileNode(args[i])
-        frame = @frame(fargs)
         print "Calling"
-        @call(value, func.value, frame)
-
+        @call(value, "", @frame [@compileNode arg for arg in *args])
+    frame: (args) =>
+        ptr = @alloca(@createLongConstant(lj.ulong, #args * 8))
+        for i=1,#args
+            @storeRelative(ptr, 8*(i-1), args[i]) 
+        return {ptr, @createLongConstant(lj.ulong, #args)} 
     compileNode: (node) =>
         print "Compiling #{astToString(node)}"
         val = @[node.kind](@,node)
         print "Compiled #{astToString(node)}"
         return val
-    frame: (values) =>
-        frame = @create(frameType(#values))
-        framePtr = @addressOf(frame)
-        for i=1,#values
-            @storeRelative(framePtr, (i-1)*8, values[i])
-        return {frame, @createLongConstant(lj.ulong, #values)}
 
     compileAst: (ast) =>
         @ljContext\buildStart()
@@ -118,6 +111,5 @@ M.FunctionBuilder = newtype {
         for i=1,#values
             values[i] = vcast(values[i])
         @apply(values, vcast(ret))
-        print("Result is: ", result[0])
 }
 return M

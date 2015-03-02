@@ -5,8 +5,6 @@ local libjit = ffi.load("./libjit.so")
 
 local M = {} -- Module
 
-
-
 local remembered = {}
 
 local function table2ffi(table, type)
@@ -18,9 +16,21 @@ local function table2ffi(table, type)
     return ctype
 end 
 
-function M.createStruct(types)
-    local ctypes = table2ffi(types, "jit_type_t[?]")
-    return libjit.jit_type_create_struct(ctypes, #types, 0)
+M.Struct = newtype()
+
+-- A structure or a static array:
+function M.Struct:init(size)
+    assert(size, "Struct size not given!")
+    self.type = libjit.jit_type_create_struct(nil,0,0)
+    libjit.jit_type_set_size_and_alignment(self.type, size, 0)
+end
+
+function M.Struct:createPtr(f) 
+    return f:adddressOf(self:create(f))
+end
+
+function M.Struct:create(f) 
+    return libjit.type_value_create(f.func, self.type) 
 end
 
 M.NativeFunction = newtype()
@@ -67,6 +77,11 @@ end
 
 function M.Function:_and(value1, value2) 
     return libjit.jit_insn_and(self.func, value1, value2)
+end
+
+function M.Function:dump(name)
+    name = name or ""
+    return libjit.jit_dump_function(C.stdout, self.func, name)
 end
 
 function M.Function:_not(value) 
@@ -361,6 +376,8 @@ end
 compileMethods()
 
 ffi.cdef [[
+    extern void* stdout;
+
     typedef char jit_sbyte;
     typedef unsigned char jit_ubyte;
     typedef short jit_short;
@@ -416,6 +433,8 @@ ffi.cdef [[
     jit_memory_manager_t jit_default_memory_manager(void);
     jit_context_t jit_context_create(void);
 
+    void jit_dump_type(void* stream, jit_type_t type);
+    void jit_dump_function(void* stream, jit_function_t func, const char *name);
     void jit_context_destroy(jit_context_t context);
     void jit_context_build_start(jit_context_t context);
     void jit_context_build_end(jit_context_t context);
@@ -1589,7 +1608,11 @@ ffi.cdef [[
 ]]
 
 M.uint = libjit.jit_type_uint
-M.ulong = libjit.jit_type_sys_ulonglong
+M.ulong = libjit.jit_type_ulong
+M.ubyte = libjit.jit_type_ubyte
 M.ptr = libjit.jit_type_void_ptr
+
+M.typeGetOffset = libjit.jit_type_get_offset
+M.valueSetAddressable = libjit.jit_value_set_addressable
 
 return M
