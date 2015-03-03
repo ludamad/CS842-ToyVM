@@ -1,5 +1,6 @@
 ffi = require "ffi"
 runtime = require "runtime"
+librun = require 'libruntime'
 gc = require "ggggc"
 Cggggc = require "compiler_ggggc"
 
@@ -54,6 +55,10 @@ int1, int2, result = ffi.new("jit_uint[1]", 21), ffi.new("jit_uint[1]", 42), ffi
 
 TYPE_TAG_INT = 1
 
+PSTACKSIZE = VAL_SIZE*1024^2
+langGlobals = ffi.new("struct LangGlobals[1]")
+librun.langGlobalsInit(langGlobals, PSTACKSIZE)
+
 M.FunctionBuilder = newtype {
     parent: lj.Function
     init: (@ljContext, @params, @scope = M.Scope()) =>
@@ -78,7 +83,10 @@ M.FunctionBuilder = newtype {
         int_view[1] = TYPE_TAG_INT
         return @createLongConstant(lj.ulong, val[0])
 
+    pushGcStack: () =>
+        return @createLongConstant(lj.ulong, val[0])
     StringLit: (node) =>
+        lib
         val = ffi.new("uint64_t[1]")
         int_view = ffi.cast("int*", val)
         int_view[0] = tonumber(node.value)

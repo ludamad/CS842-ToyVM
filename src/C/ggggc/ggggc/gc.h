@@ -84,15 +84,6 @@ typedef size_t ggc_size_t;
 
 /* GC pool (forms a list) */
 struct GGGGC_Pool {
-#if GGGGC_GENERATIONS > 1
-    /* the remembered set for this pool. NOTE: It's important this be first to
-     * make assigning to the remembered set take one less operation */
-    unsigned char remember[GGGGC_CARDS_PER_POOL];
-
-    /* the locations of objects within the cards */
-    unsigned short firstObject[GGGGC_CARDS_PER_POOL];
-#endif
-
     /* the next pool in this generation */
     struct GGGGC_Pool *next;
 
@@ -110,6 +101,14 @@ struct GGGGC_Pool {
 
     /* pointer to the break table (used only during collection) */
     void *breakTable;
+
+#if GGGGC_GENERATIONS > 1
+    /* the remembered set for this pool */
+    unsigned char remember[GGGGC_CARDS_PER_POOL];
+
+    /* the locations of objects within the cards */
+    unsigned short firstObject[GGGGC_CARDS_PER_POOL];
+#endif
 
     /* and the actual content */
     ggc_size_t start[1];
@@ -186,7 +185,7 @@ static type ## __descriptorSlotConstructor type ## __descriptorSlotConstructorIn
     static struct GGGGC_DescriptorSlot type ## __descriptorSlot = { \
         GGC_MUTEX_INITIALIZER, \
         NULL, \
-        (sizeof(struct type ## __ggggc_struct) + sizeof(ggc_size_t) - 1) / sizeof(ggc_size_t), \
+        (sizeof(struct type ## __struct) + sizeof(ggc_size_t) - 1) / sizeof(ggc_size_t), \
         ((ggc_size_t)0) pointers \
     }; \
     GGGGC_DESCRIPTOR_CONSTRUCTOR(type)
@@ -203,26 +202,26 @@ static type ## __descriptorSlotConstructor type ## __descriptorSlotConstructorIn
  *     GGC_MDATA(int, fooMemberOfTypeInt);
  * GGC_END_TYPE(Foo,
  *     GGC_PTR(Foo, fooMemberOfTypeBar)
- *     )
+ *     );
  */
 #define GGC_DA_TYPE(type) \
-    typedef struct type ## __ggggc_darray *GGC_ ## type ## _Array; \
-    struct type ## __ggggc_darray { \
+    typedef struct type ## __ggggc_array *GGC_ ## type ## _Array; \
+    struct type ## __ggggc_array { \
         struct GGGGC_Header header; \
         ggc_size_t length; \
         type a__data[1]; \
     };
 #define GGC_PA_TYPE(type) \
-    typedef struct type ## __ggggc_parray *type ## Array; \
-    struct type ## __ggggc_parray { \
+    typedef struct type ## __ggggc_array *type ## Array; \
+    struct type ## __ggggc_array { \
         struct GGGGC_Header header; \
         ggc_size_t length; \
         type a__ptrs[1]; \
     };
 #define GGC_TYPE(type) \
-    typedef struct type ## __ggggc_struct *type; \
+    typedef struct type ## __struct *type; \
     GGC_PA_TYPE(type) \
-    struct type ## __ggggc_struct { \
+    struct type ## __struct { \
         struct GGGGC_Header header;
 #define GGC_MDATA(type, name) \
         type name ## __data
@@ -241,9 +240,6 @@ GGC_DA_TYPE(long)
 GGC_DA_TYPE(float)
 GGC_DA_TYPE(double)
 GGC_DA_TYPE(size_t)
-
-typedef void *GGC_voidp;
-GGC_PA_TYPE(GGC_voidp)
 
 #define GGGGC_ASSERT_ID(thing) do { \
     void *thing ## _must_be_an_identifier; \
@@ -358,6 +354,9 @@ void ggggc_globalize(void);
 /* each thread has its own pointer stack, including global references */
 extern ggc_thread_local struct GGGGC_PointerStack *ggggc_pointerStack, *ggggc_pointerStackGlobals;
 
+/* [jitpstack] and a pointer stack for JIT purposes */
+extern ggc_thread_local void **ggc_jitPointerStack, **ggc_jitPointerStackTop;
+
 /* macros to push and pop pointers from the pointer stack */
 #define GGGGC_POP() do { \
     ggggc_pointerStack = ggggc_pointerStack->next; \
@@ -410,11 +409,6 @@ GGC_TYPE(ThreadArg)
 GGC_END_TYPE(ThreadArg,
     GGC_PTR(ThreadArg, parg)
     )
-
-/* support for ggggcify tool */
-#ifdef GGGGC_GGGGCIFY
-#include "ggggcify.h"
-#endif
 
 #ifdef __cplusplus
 }

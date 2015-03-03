@@ -4,7 +4,6 @@
 ffi = require "ffi"
 runtime = require "runtime"
 gc = require "ggggc"
-Cggggc = require "compiler_ggggc"
 
 lj = require "libjit"
 
@@ -16,9 +15,6 @@ VAL_SIZE = 8 -- TODO add some constants file
 M.setupContext = (c) ->
     -- Malloc enough for the root pointer:
     c.gcRoot = gc.ggggc_mallocPointerArray(8)
-    
-
-
 
 -- Works with the rest of FunctionBuilder's methods in compiler.moon
 M.functionBuilderGGGCMethods = {

@@ -15,7 +15,7 @@ void ggc_pre_blocking(void);
 void ggc_post_blocking(void);
 
 /* ThreadArg will be defined later, but is needed immediately */
-struct ThreadArg__ggggc_struct;
+struct ThreadArg__struct;
 
 /* choose our threads */
 #if defined(GGGGC_NO_THREADS)

@@ -1,1 +1,1 @@
-luajit loader.lua
+luajit src/loader.lua

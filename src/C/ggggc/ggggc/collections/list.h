@@ -1,7 +1,7 @@
 /*
  * List collections for GGGGC
  *
- * Copyright (c) 2014, 2015 Gregor Richards
+ * Copyright (c) 2014 Gregor Richards
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -21,50 +21,10 @@
 
 #include "../gc.h"
 
-/* generic list type */
-GGC_TYPE(GGC_ListNode)
-    GGC_MPTR(GGC_ListNode, next);
-    GGC_MPTR(void *, el);
-GGC_END_TYPE(GGC_ListNode,
-    GGC_PTR(GGC_ListNode, next)
-    GGC_PTR(GGC_ListNode, el)
-    )
-
-GGC_TYPE(GGC_List)
-    GGC_MDATA(ggc_size_t, length);
-    GGC_MPTR(GGC_ListNode, head);
-    GGC_MPTR(GGC_ListNode, tail);
-GGC_END_TYPE(GGC_List,
-    GGC_PTR(GGC_List, head)
-    GGC_PTR(GGC_List, tail)
-    )
-
-/* push an element to the end of a generic list */
-void GGC_ListPush(GGC_List list, void *value);
-
-/* push a list to the end of another list */
-void GGC_ListPushList(GGC_List to, GGC_List from);
-
-/* push an element to the beginning of a generic list */
-void GGC_ListUnshift(GGC_List list, void *value);
-
-/* push a list to the beginning of another list */
-void GGC_ListUnshiftList(GGC_List to, GGC_List from);
-
-/* pop an element from the beginning of a generic list */
-void *GGC_ListShift(GGC_List list);
-
-/* insert an element after the specified one, in the given list */
-void GGC_ListInsertAfter(GGC_List list, GGC_ListNode after, void *value);
-
-/* insert a list after the specified element, in the given list */
-void GGC_ListInsertAfterList(GGC_List to, GGC_ListNode after, GGC_List from);
-
-/* convert a list to an array */
-GGC_voidpArray GGC_ListToArray(GGC_List list);
-
-/* declarations for typed lists and their functions */
-#define GGC_LIST(type) \
+/* declarations for type ## ListNode (the list node type) and type ## List (the
+ * list type), as well as type ## ListPush and type ## ListToArray (list
+ * functions) */
+#define GGGGC_LIST_DECL(type, static) \
 GGC_TYPE(type ## ListNode) \
     GGC_MPTR(type ## ListNode, next); \
     GGC_MPTR(type, el); \
@@ -82,37 +42,63 @@ GGC_END_TYPE(type ## List, \
     GGC_PTR(type ## List, tail) \
     ); \
 \
+static void type ## ListPush(type ## List list, type value); \
+static type ## Array type ## ListToArray(type ## List list)
+
+#define GGC_LIST_DECL_STATIC(type) GGGGC_LIST_DECL(type, static)
+#define GGC_LIST_DECL(type) GGGGC_LIST_DECL(type, GGGGC_EMPTY)
+
+/* the definitions of our list functions */
+#define GGGGC_LIST_DEFN(type, static) \
 static void type ## ListPush(type ## List list, type value) \
 { \
-    GGC_ListPush((GGC_List) list, value); \
+    type ## ListNode node = NULL, tail = NULL; \
+    \
+    GGC_PUSH_4(list, value, node, tail); \
+    \
+    node = GGC_NEW(type ## ListNode); \
+    GGC_WP(node, el, value); \
+    \
+    tail = GGC_RP(list, tail); \
+    if (tail) \
+        GGC_WP(tail, next, node); \
+    else \
+        GGC_WP(list, head, node); \
+    GGC_WP(list, tail, node); \
+    \
+    list->length__data++; \
+    \
+    return; \
 } \
-static void type ## ListPushList(type ## List to, type ## List from) \
-{ \
-    GGC_ListPushList((GGC_List) to, (GGC_List) from); \
-} \
-static void type ## ListUnshift(type ## List list, type value) \
-{ \
-    GGC_ListUnshift((GGC_List) list, value); \
-} \
-static void type ## ListUnshiftList(type ## List to, type ## List from) \
-{ \
-    GGC_ListUnshiftList((GGC_List) to, (GGC_List) from); \
-} \
-static type type ## ListShift(type ## List list) \
-{ \
-    return (type) GGC_ListShift((GGC_List) list); \
-} \
-static void type ## ListInsertAfter(type ## List list, type ## ListNode after, type value) \
-{ \
-    GGC_ListInsertAfter((GGC_List) list, (GGC_ListNode) after, value); \
-} \
-static void type ## ListInsertAfterList(type ## List to, type ## ListNode after, type ## List from) \
-{ \
-    GGC_ListInsertAfterList((GGC_List) to, (GGC_ListNode) after, (GGC_List) from); \
-} \
+\
 static type ## Array type ## ListToArray(type ## List list) \
 { \
-    return (type ## Array) GGC_ListToArray((GGC_List) list); \
+    type ## Array ret = NULL; \
+    type ## ListNode curn = NULL; \
+    type cur = NULL; \
+    size_t i = 0; \
+    \
+    GGC_PUSH_4(list, ret, curn, cur); \
+    ret = GGC_NEW_PA(type, GGC_RD(list, length)); \
+    \
+    for (i = 0, curn = GGC_RP(list, head); \
+         i < GGC_RD(list, length) && curn; \
+         i++, curn = GGC_RP(curn, next)) { \
+         cur = GGC_RP(curn, el); \
+         GGC_WAP(ret, i, cur); \
+    } \
+    \
+    return ret; \
 }
+
+#define GGC_LIST_DEFN_STATIC(type) GGGGC_LIST_DEFN(type, static)
+#define GGC_LIST_DEFN(type) GGGGC_LIST_DEFN(type, GGGGC_EMPTY)
+
+/* and both together */
+#define GGGGC_LIST(type, static) \
+    GGGGC_LIST_DECL(type, static); \
+    GGGGC_LIST_DEFN(type, static)
+#define GGC_LIST_STATIC(type) GGGGC_LIST(type, static)
+/* no GGC_LIST without _STATIC, as that makes no sense */
 
 #endif

@@ -38,7 +38,13 @@ GGC_END_TYPE(ThreadInfo,
     )
 
 /* general purpose thread wrapper */
-static void *ggggcThreadWrapper(void *arg)
+static
+#ifdef _WIN32
+DWORD __declspec(__stdcall)
+#else
+void *
+#endif
+ggggcThreadWrapper(void *arg)
 {
     ThreadInfo ti = (ThreadInfo) arg;
     GGC_PUSH_1(ti);
@@ -96,10 +102,8 @@ void ggc_post_blocking()
     struct GGGGC_PointerStackList *pslCur;
 
     /* get a lock on the thread count etc */
-    while (ggc_mutex_trylock(&ggggc_worldBarrierLock) != 0);
-    /* FIXME: can't yield here, as yielding waits for stop-the-world if
-     * applicable. Perhaps something would be more ideal than a spin-loop
-     * though. */
+    while (ggc_mutex_trylock(&ggggc_worldBarrierLock) != 0)
+        GGC_YIELD();
 
     /* add ourselves back to the world barrier */
     ggc_barrier_destroy(&ggggc_worldBarrier);

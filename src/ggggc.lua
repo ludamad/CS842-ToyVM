@@ -82,6 +82,6 @@ ffi.cdef [[
         void ggggc_globalize(void);
 ]]
 
-local gc = ffi.load("./libggggc.so")
+local gc = ffi.load("./build/libggggc.so")
 
 return gc

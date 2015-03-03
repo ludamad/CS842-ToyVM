@@ -1,8 +1,16 @@
+/* Allow for MAP_ANONYMOUS */
+#define _GNU_SOURCE
+
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "runtime.h"
 #include <sys/mman.h>
+
 
 uint64_t RUNTIME_print(value_t* args, int n) {
     int i;
@@ -63,7 +71,6 @@ struct LangGlobals {
 
 void* langDefaultValue;
 
-ggc_thread_local void **ggc_jitPointerStack, **ggc_jitPointerStackTop;
 void* langNewString(const char* value, size_t len);
 
 void langGlobalsInit(int pstackSize) {
@@ -74,7 +81,7 @@ void langGlobalsInit(int pstackSize) {
 
     GGC_PUSH_4(esm, emptyShape, eim, defaultValue);
 
-    langGlobals.pstack = (void**)mmap(NULL, pstackSize*sizeof(void*), PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON, -1, 0);
+    langGlobals.pstack = (void**)mmap(NULL, pstackSize*sizeof(void*), PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
     ggc_jitPointerStack = langGlobals.pstack;
     ggc_jitPointerStackTop = langGlobals.pstack;
 

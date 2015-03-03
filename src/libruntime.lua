@@ -1,6 +1,5 @@
 local ffi = require "ffi"
 local gc = require "ggggc"
-local runtime = ffi.load("./libruntime.so")
 
 -- Too much work to correctly expose GC'd types
 -- and we only use them from C and from JIT, so its OK.
@@ -11,6 +10,7 @@ ffi.cdef [[
 
     struct LangGlobals {
         void** pstack;
+        void*** pstackTop;
         void* emptyShape;
     };
 
@@ -18,4 +18,4 @@ ffi.cdef [[
     void* langNewString(char *value, size_t len);
 ]]
 
-return runtime
+return gc

@@ -1,7 +1,7 @@
 local table = table
 local ffi = require "ffi"
 local C = ffi.C -- The C namespace
-local libjit = ffi.load("./libjit.so")
+local libjit = ffi.load("./build/libjit.so")
 
 local M = {} -- Module
 
