@@ -17,8 +17,13 @@ funcs = {
        for i=0,tonumber(n)-1
           if i >= 1 
               io.write '\t'
-          assert(args[i].tag == 1)
-          io.write(args[i].val)
+          if args[i].tag == 1
+              -- Assumg integer!
+              io.write(args[i].val)
+          else -- Assume string!
+              asString = ffi.cast("void**", args + i)[0]
+              print asString
+              librun.langStringPrint(asString)
        io.write('\n')
        return ffi.new("uint64_t", 0)
 }

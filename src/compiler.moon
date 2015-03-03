@@ -55,20 +55,43 @@ int1, int2, result = ffi.new("jit_uint[1]", 21), ffi.new("jit_uint[1]", 42), ffi
 
 TYPE_TAG_INT = 1
 
-PSTACKSIZE = VAL_SIZE*1024^2
-langGlobals = ffi.new("struct LangGlobals[1]")
-librun.langGlobalsInit(langGlobals, PSTACKSIZE)
+initContext = (C) -> 
+    if not rawget C, 'initialized'
+        log "initContext is running! mmap funkiness ahead."
+        PSTACKSIZE = VAL_SIZE*1024^2
+        C.globals = ffi.new("struct LangGlobals[1]")
+        C.initialized = true
+        librun.langGlobalsInit(C.globals, PSTACKSIZE)
+        log "initContext has ran."
+
+stringPtrs = {}
 
 M.FunctionBuilder = newtype {
     parent: lj.Function
     init: (@ljContext, @params, @scope = M.Scope()) =>
+        initContext(@ljContext)
         lj.Function.init(@, @ljContext, lj.ulong, {lj.ptr, lj.uint})
+        -- Keep track of pointers that must be freed if this function is trashed:
+        @constantPtrs = {}
         @cfunc = false
+        {:pstackTop, :pstack} = @ljContext.globals[0]
+        @pstackTop = @createPtrRaw(pstackTop)
+        @pstack = @createPtrRaw(pstack)
         argsV = @getParam(0)
         for i=1,#@params
             {:var} = @params[i]
             var.value = @loadRelative(argsV, 8*(i-1), lj.ulong)
             @scope\declare(var)
+    -- Wraps a pointer value directly:
+    createPtrRaw: (ptr) =>
+        return @createLongConstant(lj.ptr, ffi.cast("unsigned long", ptr))
+    -- Creates a managed pointer:
+    createPtr: (val) =>
+        logV "createPtr", val
+        ptr = librun.langCreatePointer()
+        ptr[0] = val
+        append @constantPtrs, ptr
+        return ptr, @createPtrRaw(ptr)
     pushScope: () =>
         @scope = M.Scope(@scope)
     Ref: (node) =>
@@ -82,17 +105,13 @@ M.FunctionBuilder = newtype {
         int_view[0] = tonumber(node.value)
         int_view[1] = TYPE_TAG_INT
         return @createLongConstant(lj.ulong, val[0])
-
     pushGcStack: () =>
         return @createLongConstant(lj.ulong, val[0])
     StringLit: (node) =>
-        lib
-        val = ffi.new("uint64_t[1]")
-        int_view = ffi.cast("int*", val)
-        int_view[0] = tonumber(node.value)
-        int_view[1] = TYPE_TAG_INT
-        return @createLongConstant(lj.ulong, val[0])
-
+        if not stringPtrs[node.value]
+            stringPtrs[node.value] = librun.langNewString(node.value, #node.value)
+        ptr, jitVal = @createPtr(stringPtrs[node.value])
+        return @loadRelative(jitVal, 0, lj.ulong)
 	-- Allocates a static, gc-managed, pointer
     allocateLangArray: () =>
         return @call(runtime.gcMalloc)

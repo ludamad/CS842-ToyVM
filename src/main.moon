@@ -1,3 +1,8 @@
+if tonumber(os.getenv('V') or '0') >= 3
+    req = require
+    _G.require = (...) ->
+        print('require', ...)
+        req ...
 require "util"
 
 lj = require "libjit"
@@ -5,6 +10,7 @@ ffi = require "ffi"
 C = require "compiler"
 import parse, astToString from require "parser"
 
+log "Creating context: "
 ljContext = lj.Context()
 
 globalScope = require("runtime").makeGlobalScope()
@@ -20,6 +26,7 @@ compile = (str, dump = false) ->
     funcContext\compileAsm()
     return funcContext
 
-f = compile "print('Hello World!')"
+log "Compiling function: "
+f = compile "print('Hello World!')", true
 f()
 

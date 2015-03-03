@@ -58,6 +58,17 @@ static int stringCmp(LangString strl, LangString strr) {
 
     return ret;
 }
+void** langCreatePointer() {
+    void **ret = malloc(sizeof(void *));
+    if (ret == NULL) {
+        perror("malloc");
+        abort();
+    }
+    *ret = NULL;
+    GGC_PUSH_1(*ret);
+    GGC_GLOBALIZE();
+    return ret;
+}
 
 /* map definitions */
 GGC_MAP_DEFN(LangShapeMap, LangString, LangShape, stringHash, stringCmp);
@@ -65,6 +76,7 @@ GGC_MAP_DEFN(LangIndexMap, LangString, GGC_size_t_Unit, stringHash, stringCmp);
 
 struct LangGlobals {
     void** pstack;
+    void*** pstackTop;
     void* emptyShape;
     void* defaultValue;
 } langGlobals;
@@ -81,11 +93,16 @@ void langGlobalsInit(int pstackSize) {
 
     GGC_PUSH_4(esm, emptyShape, eim, defaultValue);
 
+    printf("Mmap\n");
     langGlobals.pstack = (void**)mmap(NULL, pstackSize*sizeof(void*), PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+    langGlobals.pstack += pstackSize;
+    printf("pstack\n");
     ggc_jitPointerStack = langGlobals.pstack;
     ggc_jitPointerStackTop = langGlobals.pstack;
+    langGlobals.pstackTop = &ggc_jitPointerStackTop;
 
     /* the empty shape */
+    printf("eshape\n");
     emptyShape = GGC_NEW(LangShape);
     esm = GGC_NEW(LangShapeMap);
     eim = GGC_NEW(LangIndexMap);
@@ -95,18 +112,20 @@ void langGlobalsInit(int pstackSize) {
     langGlobals.defaultValue = langNewString("", 0);
     langDefaultValue = langGlobals.defaultValue;
 
+    printf("POP & push\n");
     GGC_POP();
     {
     	GGC_PUSH_3(langGlobals.emptyShape, langGlobals.defaultValue, langDefaultValue);
+        GGC_GLOBALIZE();
     }
 }
 
 /* simple boxer for strings */
 void* langNewString(const char* value, size_t len) {
+    printf("langNewString : '%s'\n", value);
     LangString ret = NULL;
     GGC_char_Array arr = NULL;
 
-    PSTACK();
     GGC_PUSH_2(ret, arr);
 
     arr = GGC_NEW_DA(char, len+1);
@@ -115,11 +134,12 @@ void* langNewString(const char* value, size_t len) {
     ret = GGC_NEW(LangString);
     GGC_WP(ret, value, arr);
 
+    GGC_POP();
     return (void*)ret;
 }
 
 /* map functions */
-static void stringPrint(LangString str) {
+void langStringPrint(LangString str) {
     GGC_char_Array arr = NULL;
     size_t i, ret = 0;
 
@@ -147,13 +167,13 @@ size_t langGetObjectMemberIndex(void **pstack, LangObject object,
 	shape = GGC_RP(object, shape);
 
 	printf("Looking up ");
-	stringPrint(member);
+	langStringPrint(member);
 	printf("\n");
 	/* first, check if it is a known cached shape and member for which we remember the index */
 	if (cache
 			!= NULL&& shape == GGC_RP(*cache, cachedShape) && member == GGC_RP(*cache, cachedMember)) {
 		printf("Got cache for ");
-		stringPrint(member);
+		langStringPrint(member);
 		printf(" at %d \n", GGC_RP(*cache, cachedMember));
 		return GGC_RD(*cache, cachedIndex);
 	}
@@ -211,7 +231,7 @@ size_t langGetObjectMemberIndex(void **pstack, LangObject object,
 		GGC_WP(*cache, cachedMember, member);
 		GGC_WD(*cache, cachedIndex, ret);
 		printf("Set cache for ");
-		stringPrint(member);
+		langStringPrint(member);
 		printf(" at %X \n", GGC_RP(*cache, cachedMember));
 	}
 	return ret;

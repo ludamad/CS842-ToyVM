@@ -39,7 +39,8 @@ local function colfmt(str, ...)
     local str = str:gsub("%b{}", colorfmt_aux):format(...) ; return str
 end
 
-local LUAFILE_PATTERN = "%w+/[^%.]*%.lua"
+local LUAFILE_PATTERN = "%.*%w*/[^%.]*%.lua"
+local MOONFILE_PATTERN = "%.*%w*/[^%.]*%.moon"
 local ROOTFILE_PATTERN = "%w+%.lua"
 local LUAMODULE_PATTERN = "[%.%w_]+%.%u%w*"
 
@@ -56,6 +57,7 @@ M = {
     filter_patterns = {
         -- Lines to delete starting with this line and going up
         [".*/ErrorReporting%.lua"] = 1,
+        [".*/util%.lua"] = 1,
         ["%s*loader%.lua"] = 1,
         ["%s*%[C%]"] = 1,
         [modulestart "main%.lua.*__index"] = 1,
@@ -161,6 +163,7 @@ local function resolve_changes(stacktrace, i)
     local s = stacktrace[i]
     s = s:gsub('[%<%>]', '')
     s = s:gsub('('..LUAFILE_PATTERN .. "):(%d+)", path_conv)
+    s = s:gsub('('..MOONFILE_PATTERN .. "):(%d+)", path_conv)
     s = s:gsub('('..ROOTFILE_PATTERN .. "):(%d+)", path_conv)
     if #converted > 0 then
         s = s .. ' ' .. converted[1]

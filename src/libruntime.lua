@@ -12,10 +12,13 @@ ffi.cdef [[
         void** pstack;
         void*** pstackTop;
         void* emptyShape;
+        void* defaultValue;
     };
 
+    void** langCreatePointer();
+    void langStringPrint(void* str);
     void langGlobalsInit(struct LangGlobals* globals, int pstackSize);
-    void* langNewString(char *value, size_t len);
+    void* langNewString(const char *value, size_t len);
 ]]
 
 return gc

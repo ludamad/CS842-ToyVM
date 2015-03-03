@@ -11,7 +11,6 @@ M = {} -- Module
 
 VAL_SIZE = 8 -- TODO add some constants file
 
-
 M.setupContext = (c) ->
     -- Malloc enough for the root pointer:
     c.gcRoot = gc.ggggc_mallocPointerArray(8)
