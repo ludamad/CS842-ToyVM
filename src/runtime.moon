@@ -38,6 +38,8 @@ makeGlobalScope = () ->
     return scope
 
 gcMalloc = lj.NativeFunction(gc.ggggc_malloc, lj.ptr, {lj.ptr})
+gcMallocPointerArray = lj.NativeFunction(gc.ggggc_mallocPointerArray, lj.ptr, {})
+gcMallocDataArray = lj.NativeFunction(gc.ggggc_mallocDataArray, lj.ptr, {})
 
-return {:makeGlobalScope, :gcMalloc}
+return {:makeGlobalScope, :gcMalloc, :gcMallocPointerArray, :gcMallocDataArray}
 

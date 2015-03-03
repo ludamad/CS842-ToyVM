@@ -1,14 +1,15 @@
 ffi = require "ffi"
 runtime = require "runtime"
 gc = require "ggggc"
+Cggggc = require "compiler_ggggc"
 
 lj = require "libjit"
-
-VAL_SIZE = 8
 
 import astToString from require "parser"
 
 M = {} -- Module
+
+VAL_SIZE = 8 -- TODO add some constants file
 
 M.Variable = newtype {
     init: (@name) =>
@@ -77,8 +78,19 @@ M.FunctionBuilder = newtype {
         int_view[1] = TYPE_TAG_INT
         return @createLongConstant(lj.ulong, val[0])
 
+    StringLit: (node) =>
+        val = ffi.new("uint64_t[1]")
+        int_view = ffi.cast("int*", val)
+        int_view[0] = tonumber(node.value)
+        int_view[1] = TYPE_TAG_INT
+        return @createLongConstant(lj.ulong, val[0])
+
 	-- Allocates a static, gc-managed, pointer
     allocateLangArray: () =>
+        return @call(runtime.gcMalloc)
+ 
+	-- Allocates a static, gc-managed, pointer
+    allocateDataArray: () =>
         return @call(runtime.gcMalloc)
         
     -- AST node handlers:
@@ -112,4 +124,9 @@ M.FunctionBuilder = newtype {
         for i=1,#args do cargs[i-1] = args[i]
         return @.cfunc(cargs, #args)
 }
+
+-- Ad-hoc multiple inheritance:
+for k,v in pairs(Cggggc.functionBuilderGGGCMethods)
+    M.FunctionBuilder[k] = v
+
 return M

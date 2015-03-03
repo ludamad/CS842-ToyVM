@@ -20,6 +20,6 @@ compile = (str, dump = false) ->
     funcContext\compileAsm()
     return funcContext
 
-f = compile "print(3)"
+f = compile "print('Hello World!')"
 f()
 
