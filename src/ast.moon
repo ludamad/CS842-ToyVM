@@ -24,5 +24,4 @@ values.ArithmeticOp = (op, val1, val2) ->
 
 statements = {}
 
-
 return {:values, :statements, :TYPE_UNKNOWN, :TYPE_POLY, :TYPE_INT, :TYPE_DBL, :TYPE_STRING, :TYPE_SHAPE}

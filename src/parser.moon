@@ -39,20 +39,13 @@ Var = lpeg.V
 ------------------------------------------------------------------------------
 
 _Space = ZeroOrMore MatchAnyOf " \n\r\t"
+_NonBreakSpace = ZeroOrMore MatchAnyOf " \t"
 Break = (OneOrLess "\r") * (MatchExact "\n")
 Stop = Break + EndOfLine
 
-Indent = (Capture ZeroOrMore MatchAnyOf "\t ") / (str) ->
-    -- Transform capture by counting the indent
-    sum = 0
-    for v in str\gmatch "[\t ]"
-        if v == ' ' then sum += 1
-        if v == '\t' then sum += 4
-    -- Return the indent amount
-    return sum
-
 Comment = (MatchAnyOf "--") * (ZeroOrMore Complement MatchAnyOf "\r\n") * #Stop
 Space = _Space * (OneOrLess Comment)
+NonBreakSpace = _NonBreakSpace * (OneOrLess Comment)
 SomeSpace = (OneOrMore MatchAnyOf " \t") * (OneOrLess Comment)
 SpaceBreak = Space * Break
 EmptyLine = SpaceBreak
@@ -80,6 +73,7 @@ Num = Space * (Int+Float)
 
 FactorOp = Space * Capture(MatchAnyOf "+-")
 TermOp = Space * Capture(MatchAnyOf "*/%^")
+LogicOp = Space * Capture(MatchAnyOf "<>")
 
 Shebang = MatchExact("#!") * (ZeroOrMore Complement Stop)
 
@@ -88,6 +82,7 @@ Cut = ToPattern ()->false
 
 
 sym = (chars) -> Space * (MatchExact chars)
+symC = (chars) -> Space * Capture(MatchExact chars)
 
 StartBrace = sym("{") 
 EndBrace = sym("}")
@@ -108,6 +103,14 @@ extend = (src, new) ->
 indentStack = {0}
 last_pos = 0
 
+Indent = (Capture ZeroOrMore MatchAnyOf "\t ") / (str) ->
+    -- Transform capture by counting the indent
+    sum = 0
+    for v in str\gmatch "[\t ]"
+        if v == ' ' then sum += 1
+        if v == '\t' then sum += 4
+    return sum
+
 _pushIndent = (indent) -> append indentStack, indent
 _cbPopIndent = () -> 
     indentStack[#indentStack] = nil
@@ -116,13 +119,14 @@ _topIndent = () -> indentStack[#indentStack]
 
 _cbCheckIndent = (str, pos, indent) ->
     last_pos = pos
-    return _topIndent() == indent
+    pass = _topIndent() == indent
+    return pass
 
 _cbAdvanceIndent = (str, pos, indent) ->
-    top = _indent\top!
+    top = _topIndent()
     if top != -1 and indent > top
-      _cbPushIndent(indent)
-    return true
+       _pushIndent(indent)
+       return true
 
 _cbPushIndent = (str, pos, indent) ->
     _pushIndent(indent)
@@ -133,25 +137,28 @@ indentG = {
     PushIndent: lpeg.Cmt(Indent, _cbPushIndent)
     PreventIndent: lpeg.Cmt(lpeg.Cc(-1), _cbPushIndent)
     PopIndent: lpeg.Cmt("", _cbPopIndent)
-    InBlock: gref.Advance * gref.Block * gref.PopIndent
     CheckIndent: lpeg.Cmt(Indent, _cbCheckIndent), -- validates line is in correct indent
 }
 
+lineEnding = OneOrMore(NonBreakSpace * Break)
 grammar = MatchGrammar extend indentG, {
     gref.File -- Initial Rule          
     File: (OneOrLess Shebang) * (gref.Block + CaptureTable(""))
-    Block: CaptureTable(gref.Line * ZeroOrMore(OneOrMore(Break) * gref.Line))
-    Line: gref.CheckIndent * gref.Statement + Space*IgnoreCapture(Stop)
+    Block: CaptureTable(ZeroOrMore(gref.Line))
+    Line: gref.CheckIndent * gref.Statement + NonBreakSpace*OneOrMore(Break)
+--    Block: CaptureTable(gref.Line * ZeroOrMore(OneOrMore(Break) * gref.Line))
     Statement: Union {
+        gref.While
         gref.AssignStmnt
         gref.Declare
         gref.FuncCall
     }
     InBlock: gref.Advance * gref.Block * gref.PopIndent
-    Body: Space^-1 * Break * EmptyLine^0 * gref.InBlock + lpeg.Ct(gref.Statement), -- either a statement, or an indented block
-    While: sym("while") * gref.Body / inject1("while")
-    Assign: sym("=") * gref.ExprList
-    AssignStmnt: gref.NameList * sym("=") * gref.ExprList /injectArr("Assign")
+    Body: OneOrMore(lineEnding) * gref.InBlock -- an indented block
+    LogicOperator: (gref.Expr *  LogicOp * gref.Expr)/injectArr("Operator")
+    While: sym("while") * gref.LogicOperator * gref.Body / injectArr("while")
+    Assign: (symC("=") + symC("-=") + symC("+=")) * gref.ExprList
+    AssignStmnt: gref.NameList * gref.Assign /injectArr("Assign")
     Declare: _Name * gref.NameList * (OneOrLess gref.Assign) /injectArr("Declare")
     NameList: CaptureTable(Name * (ZeroOrMore sym(",")*Name))
 
@@ -173,15 +180,6 @@ grammar = MatchGrammar extend indentG, {
     -- Note, FuncCall is both an expression and a statement
     FuncCall: gref._Expr * sym("(") * gref.ExprList * sym(")") /injectArr("FuncCall")
 }
-
---matches = lpeg.match grammar, "
---    print({
---        hi: '', there: 2, 
---        people: 3
---    })
---"
---for m in *matches
---    pretty m
 
 parse = (codeString) -> 
     indentLevel = 0

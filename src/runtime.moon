@@ -33,11 +33,12 @@ for k,v in pairs(funcs)
     --funcs[k] = lj.NativeFunction(librun.RUNTIME_print, lj.ulong, {lj.ptr, lj.uint})
 
 local C 
+import Variable from require "compiler_syms"
 makeGlobalScope = () ->
     C or= require "compiler"
     scope = C.Scope()
     for k,v in pairs(funcs)
-        scope\declare with C.Variable(k)
+        scope\declare with Variable(k)
             \makeConstant(v)
     return scope
 

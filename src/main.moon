@@ -8,6 +8,7 @@ require "util"
 lj = require "libjit"
 ffi = require "ffi"
 C = require "compiler"
+import Param from require "compiler_syms"
 import parse, astToString from require "parser"
 
 log "Creating context: "
@@ -16,17 +17,19 @@ ljContext = lj.Context()
 globalScope = require("runtime").makeGlobalScope()
 compile = (str, dump = false) ->
     ast = parse(str)
-    funcContext = C.FunctionBuilder(ljContext, {C.Param "a", C.Param "b"}, globalScope)
+    print('-AST--------------------------------------------------')
+    for astN in *ast
+        print(astToString astN)
+    funcContext = C.FunctionBuilder(ljContext, {Param "a", Param "b"}, globalScope)
     funcContext\compileIR(ast)
-    if dump
-        print('-AST--------------------------------------------------')
-        print(astToString ast)
-        print('-LibJIT IR--------------------------------------------')
-        print(funcContext\dump())
+    print('-LibJIT IR--------------------------------------------')
+    print(funcContext\dump())
     funcContext\compileAsm()
     return funcContext
 
 log "Compiling function: "
-f = compile "print('Hello World!')", true
+program = "print('The answer is ', 42)"
+print program
+f = compile(program, true)
 f()
 

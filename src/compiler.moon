@@ -8,35 +8,26 @@ lj = require "libjit"
 
 import astToString from require "parser"
 
+import Variable, Param from require "compiler_syms"
+
 M = {} -- Module
 
 VAL_SIZE = 8 -- TODO add some constants file
-
-M.Variable = newtype {
-    init: (@name) =>
-        @isConstant = false
-    makeConstant: (value) =>
-        @isConstant = true
-        @constantValue = value
-}
-
-M.Param = newtype {
-    init: (@name) =>
-        @var = M.Variable(@name)
-}
 
 M.Scope = newtype {
     init: (@parentScope = false) =>
         @variables = {}
     -- By default, a = 1 will declare in current context if not in above contexts
     declareIfNotPresent: (name) =>
-        if @get(name) == nil
-            @declare(name)
+        val = @get(name) 
+        if val then return val
+        return @declare(name)
     declare: (var) =>
         if type(var) == "table"
             @variables[var.name] = var
         else
-            @variables[name] = M.Variable(name)
+            @variables[name] = var
+        return var
     get: (name) =>
         scope = @
         while scope ~= false
@@ -65,9 +56,22 @@ initContext = (C) ->
         log "initContext has ran."
 
 stringPtrs = {}
-
+neg8unsigned64bit = ffi.cast "uint64_t", ffi.cast("int64_t", -8)
 M.FunctionBuilder = newtype {
     parent: lj.Function
+    -- Returns the offset from @pstack:
+    pushObjPtr: (val) =>
+        if not val
+            val = @createLongConstant(lj.ulong, @ljContext.globals[0].defaultValue)
+        neg8 = @createLongConstant(lj.ulong, neg8unsigned64bit)
+        stackPtr = @loadRelative(@pstackTop, 0, lj.ptr)
+        @storeRelative stackPtr, -8, vall
+        @storeRelative @pstackTop, 0, @addRelative(@pstackTop, 0, neg8)
+        return @loadRelative stackPtr, 0, lj.ptr
+
+    popObjPtr: () =>
+        pos8 = @createLongConstant(lj.ulong, 8)
+        @storeRelative @pstackTop, 0, @addRelative(@pstackTop, 0, pos8)
     init: (@ljContext, @params, @scope = M.Scope()) =>
         initContext(@ljContext)
         lj.Function.init(@, @ljContext, lj.ulong, {lj.ptr, lj.uint})
@@ -81,7 +85,7 @@ M.FunctionBuilder = newtype {
         for i=1,#@params
             {:var} = @params[i]
             var.value = @loadRelative(argsV, 8*(i-1), lj.ulong)
-            @scope\declare(var)
+            @scope\declareIfNotPresent(var)
     -- Wraps a pointer value directly:
     createPtrRaw: (ptr) =>
         return @createLongConstant(lj.ptr, ffi.cast("unsigned long", ptr))
@@ -94,6 +98,8 @@ M.FunctionBuilder = newtype {
         return ptr, @createPtrRaw(ptr)
     pushScope: () =>
         @scope = M.Scope(@scope)
+
+    -- AST node handlers:
     Ref: (node) =>
         var = @scope\get(node.value)
         if var.isConstant
@@ -105,22 +111,19 @@ M.FunctionBuilder = newtype {
         int_view[0] = tonumber(node.value)
         int_view[1] = TYPE_TAG_INT
         return @createLongConstant(lj.ulong, val[0])
-    pushGcStack: () =>
-        return @createLongConstant(lj.ulong, val[0])
+    Assign: (node) =>
+        {varDecls, op, varValues} = node.value
+        assert #varDecls == #varValues
+        for i=1,#varDecls
+            decl, val  = varDecls[i], varValues[i]
+            --if @scope
+
     StringLit: (node) =>
         if not stringPtrs[node.value]
             stringPtrs[node.value] = librun.langNewString(node.value, #node.value)
         ptr, jitVal = @createPtr(stringPtrs[node.value])
         return @loadRelative(jitVal, 0, lj.ulong)
-	-- Allocates a static, gc-managed, pointer
-    allocateLangArray: () =>
-        return @call(runtime.gcMalloc)
- 
-	-- Allocates a static, gc-managed, pointer
-    allocateDataArray: () =>
-        return @call(runtime.gcMalloc)
-        
-    -- AST node handlers:
+    
     FuncCall: (node) =>
         {func, args} = node.value
         value = @compileNode(func)
