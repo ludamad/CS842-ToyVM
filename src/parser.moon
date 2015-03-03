@@ -89,8 +89,8 @@ Cut = ToPattern ()->false
 
 sym = (chars) -> Space * (MatchExact chars)
 
-StartObj = sym("{") 
-EndObj = sym("}")
+StartBrace = sym("{") 
+EndBrace = sym("}")
 KeyValSep = sym(":") 
 
 ------------------------------------------------------------------------------
@@ -100,16 +100,56 @@ KeyValSep = sym(":")
 -- Grammar reference syntactic helper (allows for var.k => Var "k")
 gref = setmetatable {}, __index: (k) => Var k
 
-grammar = MatchGrammar {
+extend = (src, new) ->
+    for k,v in pairs(src)
+        new[k] = v
+    return new
+
+indentStack = {0}
+last_pos = 0
+
+_pushIndent = (indent) -> append indentStack, indent
+_cbPopIndent = () -> 
+    indentStack[#indentStack] = nil
+    return true
+_topIndent = () -> indentStack[#indentStack] 
+
+_cbCheckIndent = (str, pos, indent) ->
+    last_pos = pos
+    return _topIndent() == indent
+
+_cbAdvanceIndent = (str, pos, indent) ->
+    top = _indent\top!
+    if top != -1 and indent > top
+      _cbPushIndent(indent)
+    return true
+
+_cbPushIndent = (str, pos, indent) ->
+    _pushIndent(indent)
+    return true
+
+indentG = {
+    Advance: #lpeg.Cmt(Indent, _cbAdvanceIndent), -- Advances the indent, gives back whitespace for CheckIndent
+    PushIndent: lpeg.Cmt(Indent, _cbPushIndent)
+    PreventIndent: lpeg.Cmt(lpeg.Cc(-1), _cbPushIndent)
+    PopIndent: lpeg.Cmt("", _cbPopIndent)
+    InBlock: gref.Advance * gref.Block * gref.PopIndent
+    CheckIndent: lpeg.Cmt(Indent, _cbCheckIndent), -- validates line is in correct indent
+}
+
+grammar = MatchGrammar extend indentG, {
     gref.File -- Initial Rule          
     File: (OneOrLess Shebang) * (gref.Block + CaptureTable(""))
     Block: CaptureTable(gref.Line * ZeroOrMore(OneOrMore(Break) * gref.Line))
-    Line: Space*gref.Statement + Space*IgnoreCapture(Stop)
+    Line: gref.CheckIndent * gref.Statement + Space*IgnoreCapture(Stop)
     Statement: Union {
         gref.AssignStmnt
         gref.Declare
         gref.FuncCall
     }
+    InBlock: gref.Advance * gref.Block * gref.PopIndent
+    Body: Space^-1 * Break * EmptyLine^0 * gref.InBlock + lpeg.Ct(gref.Statement), -- either a statement, or an indented block
+    While: sym("while") * gref.Body / inject1("while")
     Assign: sym("=") * gref.ExprList
     AssignStmnt: gref.NameList * sym("=") * gref.ExprList /injectArr("Assign")
     Declare: _Name * gref.NameList * (OneOrLess gref.Assign) /injectArr("Declare")
@@ -118,7 +158,7 @@ grammar = MatchGrammar {
     -- Expressions:
     ExprList: CaptureTable(gref.Expr * (ZeroOrMore sym(",")*gref.Expr))
     KeyValPair: Name * KeyValSep * gref.Expr / (key, value) -> {:key, :value}
-    Object: StartObj * CaptureTable OneOrLess(gref.KeyValPair * (ZeroOrMore sym(",") *gref.KeyValPair)) * EndObj
+    Object: StartBrace * CaptureTable OneOrLess(gref.KeyValPair * (ZeroOrMore sym(",") *gref.KeyValPair)) * EndBrace
     _Expr: Union {
         Name/inject1("Ref")
         Num
@@ -143,7 +183,9 @@ grammar = MatchGrammar {
 --for m in *matches
 --    pretty m
 
-parse = (codeString) -> lpeg.match(grammar, codeString)
+parse = (codeString) -> 
+    indentLevel = 0
+    lpeg.match(grammar, codeString)
 
 astToString = (node) ->
     if node == nil 
