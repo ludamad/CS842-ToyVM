@@ -6,21 +6,20 @@ gc = require "ggggc"
 
 lj = require "libjit"
 
+col = require "system.AnsiColors"
 
-Scope = newtype {
+M = {} -- Module
+
+--------------------------------------------------------------------------------
+-- First function builder pass:
+--  - Resolve symbols
+--------------------------------------------------------------------------------
+
+M.Scope = newtype {
     init: (@parentScope = false) =>
         @variables = {}
-    -- By default, a = 1 will declare in current context if not in above contexts
-    declareIfNotPresent: (name) =>
-        val = @get(name) 
-        if val then return val
-        return @declare(name)
     declare: (var) =>
-        if type(var) == "table"
-            @variables[var.name] = var
-        else
-            @variables[name] = var
-        return var
+        @variables[var.name] = var
     get: (name) =>
         scope = @
         while scope ~= false
@@ -30,75 +29,110 @@ Scope = newtype {
         return nil
 }
 
-Constant = newtype {
-    init: (@value, @name = false) =>
+cFaintW = (s) -> col.WHITE(s, col.FAINT)
+StackRef = newtype {
+    init: (@index = false) =>
+    resolve: (f) =>
+        if not @index
+            @index = f\pushStackLoc()
+    -- If we load to a 'value', we can save always storing if in a safe point
+    store: (f, val) =>
+        f\storeRelative(f.stackFrameVal, 8*@index, val)
+    load: (f) =>
+        f\loadRelative(f.stackFrameVal, 8*@index, lj.ulong)
+    __tostring: () => 
+        if @index
+            return cFaintW("@") .. col.GREEN(@index)
+        s = string.format("%p", @)
+        s = s\sub(#s-1,#s)
+        return cFaintW("@")..col.GREEN(s..'?')
+}
+
+M.Variable = newtype {
+    parent: StackRef
+    init: (f, @name) =>
+        StackRef.init(@)
+        -- Resolve variables immediately.
+        -- We will reclaim their stack space if their scope is popped.
+        @resolve(f)
+    link: (stackRef) =>
+        assert(stackRef.index == false)
+        stackRef.index = @index
+    __tostring: () => col.WHITE("$#{@name}", col.FAINT) .. StackRef.__tostring(@)
+}
+
+M.Constant = newtype {
+    init: (@name, @value) =>
     store: (f) =>
         error "Cannot store to constant '#{@name or @value}'!"
     load: (f) => @value
+    __tostring: () => col.RED("$#{@name}", col.FAINT)
 }
 
-StackVar = newtype {
-    init: (@index, @name = false) =>
-    -- If we load to a 'value', we can save always storing if in a safe point
-    store: (f, val) =>
-        f\storeRelative(@value, f\getParam(@,))
-    load: (f) =>
-        f\loadRelative(f.stackFrame, 8*@index, lj.ulong)
-    __tostring: () => "LocalVal(#{@index}, #{@name})"
-}
 
---------------------------------------------------------------------------------
--- First function builder pass:
---  - Assign a stack location to every expression!
---------------------------------------------------------------------------------
 ast.installOperation {
-    methodName: "stackAlloc"
-    -- Expressions:
-    RefLoad: (f) =>
-        -- Do not allow variable creation in value contexts.
-        @srcVar = f\getStackVar(@name, false)
-        @stackVar = f\getStackVar(@name, false)
-        return @stackVar
-    Operator: (f) =>
+    methodName: "symbolResolve"
+    recurseName: "_symbolRecurse"
+    default: (f) =>
+        @_symbolRecurse(f)
+        @dest = StackRef()
     -- Assignables:
     RefStore: (f) =>
-        -- Allow variable creation in assignment contexts.
-        var = f\getStackVar(@name, true)
+        sym = f.scope\get(@name)
+        if sym == nil
+            sym = M.Variable(@name)
+            f.scope\declare(@name)
+        @symbol = sym
+    -- Expressions:
+    RefLoad: (f) =>
+        sym = f.scope\get(@name)
+        if sym == nil
+            error("No such symbol '#{@name}'.")
+        @symbol = sym
+        @dest = StackRef()
     -- Statements:
     Assign: (f) =>
-        for i=1,
+        @_symbolRecurse(f)
+        for i=1,#@vars
+            var, val = @vars[i], @values[i]
+            var.symbol\link(val.dest)
+}
+
+ast.installOperation {
+    methodName: "stackResolve"
+    recurseName: "_stackRecurse"
+    default: (f) =>
+        f\saveStackLoc()
+        @_stackRecurse(f)
+        f\loadStackLoc()
+        @dest\resolve(f)
 }
 
 -- Note: lj.Function to start has many members, some commonly named. We will be extending it twice, we must
 -- take caution not to confuse any of the members.
-FBStackAllocPass = newtype {
+FBStackResolver = newtype {
     parent: lj.Function
-    init: (@ljContext, @paramNames, @builtins) =>
-        initContext(@ljContext)
         -- Take how many args, return how many return values on object stack.
-        lj.Function.init(@, @ljContext, lj.uint, {lj.uint})
-        @stackVars = {}
-        @nameToStackVar = {}
-        @maxStackVars = 0
-        for name in *@paramNames
-            @pushStackVar(name)
-    getStackVar: (name, create = false) =>
-        var = @nameToStackVar[name]
-        created = false
-        if var == nil and not create
-            error("!")
-        if var == nil
-            var = @pushStackVar(name)
-            @nameToStackVar[name] = var
-            created = true
-        return var, created
-    pushStackVar: (name) =>
-        var = StackVar(#@stackVars, name)
-        append @stackVars, var
-        if name
-            @nameToStackVar[name] = var
-        @maxStackVars = math.max(#@stackVars, @maxStackVars)
-        return var
+    init: (@paramNames) =>
+        @stackLocHistory = {}
+        @stackLoc = 0
+        @maxStackLoc = @stackLoc
+        for i=1,#@paramNames
+            var = M.Variable(@, @paramNames[i])
+            @scope\declare(var)
+    saveStackLoc: () =>
+        append @stackLocHistory, @stackLoc
+    loadStackLoc: () =>
+        top = @stackLocHistory[#@stackLocHistory]
+        @stackLocHistory[#@stackLocHistory] = nil
+        @stackLoc = top
+    loadAndPushStackLoc: () => 
+        @loadStackLoc()
+        return @pushStackLoc()
+    pushStackLoc: () => 
+        @stackLoc += 1
+        @maxStackLoc = math.max(@stackLoc, @maxStackLoc)
+        return @stackLoc - 1
     popStackVars: (n) =>
         for i=1,n
             endV = @stackVars[#@stackVars]
@@ -108,12 +142,14 @@ FBStackAllocPass = newtype {
 }
 
 
-FBJitCompilePass = newtype {
-    parent: FBStackAllocPass
-    init: (...) =>
-        FBStackAllocPass.init(...)
+FBJitCompiler = newtype {
+    parent: FBStackResolver
+    init: (@ljContext, paramNames, globalScope) =>
+        lj.Function.init(@, @ljContext, lj.uint, {lj.uint})
+        @scope = M.Scope(globalScope)
+        FBStackResolver.init(@, paramNames)
         @constantPtrs = {}
-        @compilePrelude()
+        --@compilePrelude()
 
     emitPrelude: () =>
         {:pstackTop, :pstack} = @ljContext.globals[0]
@@ -135,8 +171,6 @@ FBJitCompilePass = newtype {
         ptr[0] = val
         append @constantPtrs, ptr
         return ptr, @createPtrRaw(ptr)
-    pushScope: () =>
-        @scope = M.Scope(@scope)
     frame: (args) =>
         ptr = @alloca(@createLongConstant(lj.ulong, #args * 8))
         for i=1,#args
@@ -144,18 +178,6 @@ FBJitCompilePass = newtype {
         return {ptr, @createLongConstant(lj.ulong, #args)} 
 }
 
-OpLoad = ast.methodInstall "load", {
-    default: (n) => nil
-    Param: (f) =>
-        f\getParam(n.index)
-    Operator: (f) => 
-        l = n.left\load(f)
-        r = n.right\load(f)
-        switch n.op
-            when '+'
-                f\add(l, r)
-            when '-'
-                f\sub(l, r)
-}
+M.FunctionBuilder = FBJitCompiler
 
-Pass1 = {}
+return M

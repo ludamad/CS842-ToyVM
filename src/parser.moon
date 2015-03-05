@@ -169,16 +169,16 @@ grammar = MatchGrammar extend indentG, {
     LogicOperator: (gref.Expr *  LogicOp * gref.Expr)/ast.Operator
     While: sym("while") * gref.LogicOperator * gref.Body / ast.While
     Assign: (symC("=") + symC("-=") + symC("+=")) * gref.ExprList
-    AssignStmnt: gref.NameList * gref.Assign / ast.Assign
-    Declare: _Name * gref.NameList * (OneOrLess gref.Assign) / ast.Declare
-    NameList: CaptureTable(Name/ast.Ref * (ZeroOrMore sym(",")*(Name/ast.Ref)))
+    AssignStmnt: gref.RefStoreList * gref.Assign / ast.Assign
+    Declare: _Name * gref.RefStoreList * (OneOrLess gref.Assign) / ast.Declare
+    RefStoreList: CaptureTable(Name/ast.RefStore * (ZeroOrMore sym(",")*(Name/ast.RefStore)))
 
     -- Expressions:
     ExprList: CaptureTable(gref.Expr * (ZeroOrMore sym(",")*gref.Expr))
     KeyValPair: Name * KeyValSep * gref.Expr / (key, value) -> {:key, :value}
     Object: StartBrace * CaptureTable OneOrLess(gref.KeyValPair * (ZeroOrMore sym(",") *gref.KeyValPair)) * EndBrace
     _Expr: Union {
-        Name/ast.Ref
+        Name/ast.RefLoad
         Num
         SingleQuotedString
         DoubleQuotedString

@@ -17,14 +17,22 @@ M.checkerType = (methods) ->
         __call: (...) => T(...)
     }
 
+M.defaultInit = () =>
+    @_any = false
+    @_metatype = false
+    @_list = false
+    @_prim = false
+
 M.Any = M.checkerType {
-    init: () =>
+    init: (@name) =>
+        M.defaultInit(@)
         @_any = true
     emitCheck: (code, repr) => nil
 }
 
 M.MetaType = (metatable) -> M.checkerType {
     init: (@name) =>
+        M.defaultInit(@)
         @_metatype = true
         @metatable = metatable
     emitCheck: (code, repr) => 
@@ -33,6 +41,7 @@ M.MetaType = (metatable) -> M.checkerType {
 
 M.List = (subtype) -> M.checkerType {
     init: (@name) =>
+        M.defaultInit(@)
         @_list = true
         @subtype = subtype
         @obj = @.subtype("#{@name}[i]")
@@ -41,12 +50,15 @@ M.List = (subtype) -> M.checkerType {
         append code, @assert("#{@typeof()} == 'table'")
         append code, @assert("#{@meta()} == nil")
         append code, "for i=1, # #{@name} do"
-        append code, "print('namei', #{@name}[i])"
+        --append code, "print('namei', #{@name}[i])"
         @obj\emitCheck(code, "#{repr}.subtype")
         append code, "end"
 }
 
 M.PrimType = (str) -> M.checkerType {
+    init: (@name) =>
+        M.defaultInit(@)
+        @_prim = true
     emitCheck: (code, repr) => 
         append code, @assert("#{@typeof()} == '#{str}'")
 }
@@ -69,11 +81,11 @@ M.makeInit = (T, fields) ->
     append code, "local self = setmetatable({}, __TYPE)"
     for i=1,#fields
         {:name} = fields[i]
-        if DEBUGGING
-            append(code, "print('#{name} =', #{name})") 
+        --if DEBUGGING
+        --    append(code, "print('#{name} =', #{name})") 
         fields[i]\emitCheck(code, ids[i])
         append(code, "self.#{name} = #{name}") 
-    append code, "self:init()\nend"
+    append code, "self:init()"
     append code, "return self\nend"
     codeString = table.concat(code, '\n')
     logV("---------------\n", codeString, "\n-------------")
@@ -83,6 +95,7 @@ M.makeInit = (T, fields) ->
     return func(T, unpack(fields))
 
 M.checkedType = (t) ->
+    assert(t.init)
     cpy = {}
     for k,v in pairs(t)
         if type(k) ~= "number"

@@ -33,13 +33,11 @@ for k,v in pairs(funcs)
     --funcs[k] = lj.NativeFunction(librun.RUNTIME_print, lj.ulong, {lj.ptr, lj.uint})
 
 local C 
-import Variable from require "compiler_syms"
 makeGlobalScope = () ->
-    C or= require "compiler"
+    C or= require "newcompiler"
     scope = C.Scope()
     for k,v in pairs(funcs)
-        scope\declare with Variable(k)
-            \makeConstant(v)
+        scope\declare(C.Constant(k, v))
     return scope
 
 gcMalloc = lj.NativeFunction(gc.ggggc_malloc, lj.ptr, {lj.ptr})

@@ -8,7 +8,7 @@ lj = require "libjit"
 
 import Variable, Param from require "compiler_syms"
 
-import Any, List, checkedType, checkerType, String from require "typecheck"
+import Any, List, checkedType, checkerType, defaultInit, String from require "typecheck"
 
 M = {} -- Module
 --------------------------------------------------------------------------------
@@ -30,7 +30,8 @@ NodeT = (t) ->
     t._expr or= false
     t._assignable or= false
     t._statement or= false
-    t.__init or= () =>
+    t._fields = [field for field in *t] 
+    t.init or= () =>
     local T
     t.__tostring or= () =>
         indentStr = ''
@@ -55,10 +56,12 @@ NodeT = (t) ->
     T.toString = () =>
         __INDENT = 1
         return tostring(@)
-    return T.create -- Keep as function, less callback indirection
+    return T
 
 ExprT = (t) ->
     t._expr = true
+    t.init or= () =>
+        @dest = false
     return NodeT(t)
 
 AssignableT = (t) ->
@@ -69,15 +72,14 @@ StatementT = (t) ->
     t._statement = true
     return NodeT(t)
 PolyT = (t) ->
-    t._expr = true
     t._statement = true
-    return NodeT(t)
+    return ExprT(t)
 
 M.typeSwitch = (val, table) =>
     if val._expr and table.Expr
-        return table.Expr(val
+        return table.Expr(val)
     elseif val._statement and table.Statement
-        return table.Statement(val))
+        return table.Statement(val)
     elseif val._assignable and table.Assignable
         return table.Assignable(val)
     elseif val._node and table.Node
@@ -85,18 +87,32 @@ M.typeSwitch = (val, table) =>
     elseif val._list and table.List
         return table.List(val)
 
+nodeCheckerInit = () =>
+    defaultInit(@)
+    @_expr = false
+    @_node = true
+    @_assignable = false
 --------------------------------------------------------------------------------
 -- Constructors for declaring checked AST fields
 --------------------------------------------------------------------------------
 Expr = checkerType {
+    init: (@name) =>
+        nodeCheckerInit(@)
+        @_expr =true
     emitCheck: (code) =>
         append code, @assert("#{@name}._expr")
 }
 Assignable = checkerType {
+    init: (@name) =>
+        nodeCheckerInit(@)
+        @_assignable = true
     emitCheck: (code) =>
         append code, @assert("#{@name}._assignable")
 }
 Statement = checkerType {
+    init: (@name) =>
+       nodeCheckerInit(@)
+       @_statement = true
     emitCheck: (code) => 
         append code, @assert("#{@name}._statement")
 }
@@ -106,14 +122,24 @@ Statement = checkerType {
 --------------------------------------------------------------------------------
 M.astTypes = {}
 A = M.astTypes
+
 A.RefStore = AssignableT {
     String.name
+    init: () =>
+        @symbol = false
     __tostring: () =>
+        if @symbol
+            return tostring(@symbol)
         return "$#{@name}"
 }
 A.RefLoad = ExprT {
     String.name
+    init: () =>
+        @symbol = false
+        @dest = false
     __tostring: () =>
+        if @symbol
+            return tostring(@symbol)
         return "$#{@name}"
 }
 
@@ -161,6 +187,8 @@ A.Assign = StatementT {
     List(Assignable).vars
     String.op
     List(Expr).values
+    init: () =>
+        assert(#@vars == #@values)
     __tostring: () =>
         return "#{toCommas @vars} #{@op} #{toCommas @values}"
 }
@@ -173,23 +201,54 @@ A.FuncCall = PolyT {
         return "#{@func}(#{toCommas @args})"
 }
 
-_installOperation = (criterion) -> (funcs) ->
-    name = funcs.methodName
-    for k, v in pairs A
+_codegenRecursor = (criterion = '_node', T, methodName) ->
+    code = {"return function(self,f)"}
+    for f in *T._fields
+        if f._list
+            append code, "for i=1,# self.#{f.name} do"
+            append code, "    self.#{f.name}[i]:#{methodName}(f)"
+            append code, "end"
+        elseif rawget(f, criterion)
+            append code, "self.#{f.name}:#{methodName}(f)"
+    append code, "end"
+    codeString = table.concat(code, "\n")
+    --print "-------------------#{methodName}------------------"
+    --print codeString
+    --print "END-------------------#{methodName}------------------"
+    func, err = loadstring(codeString)
+    if func == nil
+        error(err)
+    return func()
+
+_installRecursor = (criterion, recursorName, methodName) ->
+    for tname, T in pairs A
         if not criterion or T[criterion]
-            if funcs[k]
-                A[name] = k
-            elseif funcs.default
-                A[name] = funcs.default
+            T[recursorName] = _codegenRecursor(criterion, T, methodName)
+
+_installOperation = (criterion) -> (funcs) ->
+    {:methodName} = funcs
+    if funcs.recurseName
+        _installRecursor(criterion, funcs.recurseName, methodName)
+    for tname, T in pairs A
+        if not criterion or T[criterion]
+            print methodName, tname, funcs.default
+            T[methodName] = tname and funcs[tname] or funcs.default
 
 -- Code planting API:
-M.installNodeOperation       = _installOperation('_node')
+M.installOperation       = _installOperation(nil)
 M.installExprOperation       = _installOperation('_expr')
 M.installAssignableOperation = _installOperation('_assignable')
 M.installStatementOperation  = _installOperation('_statement')
 
 -- Copy over AST nodes into main exported module
-for k,v in pairs A
-    M[k] = v
+for tname, T in pairs A
+    M[tname] = T.create
+    -- Ensure expression nodes show their 'dest' values
+    if T._expr 
+        oldTS = T.__tostring
+        T.__tostring = () =>
+            if @dest
+                return "#{oldTS @}::#{@dest}"
+            return oldTS(@)
 
 return M
