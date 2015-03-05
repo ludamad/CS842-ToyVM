@@ -58,7 +58,7 @@ M = {
         -- Lines to delete starting with this line and going up
         [".*/ErrorReporting%.lua"] = 1,
         [".*/util%.lua"] = 1,
-        ["%s*loader%.lua"] = 1,
+        [".*/loader%.lua"] = 1,
         ["%s*%[C%]"] = 1,
         [modulestart "main%.lua.*__index"] = 1,
         [modulestart "GlobalVariableLoader%.lua:.*'__index'"] = 1,

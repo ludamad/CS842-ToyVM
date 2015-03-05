@@ -117,7 +117,7 @@ M.FunctionBuilder = newtype {
         for i=1,#varDecls
             decl, val  = varDecls[i], varValues[i]
             --if @scope
-
+    
     StringLit: (node) =>
         if not stringPtrs[node.value]
             stringPtrs[node.value] = librun.langNewString(node.value, #node.value)

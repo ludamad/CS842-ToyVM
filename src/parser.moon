@@ -1,4 +1,5 @@
 require "util"
+ast = require "ast"
 
 lpeg = require "lpeg"
 lpeg.setmaxstack(10000)
@@ -7,9 +8,6 @@ lpeg.setmaxstack(10000)
 -- I found lpeg *too* terse.
 -- Here is'longhand' for the library.
 ------------------------------------------------------------------------------
-
-inject1 = (name) -> (val) -> {kind: name, value: val}
-injectArr = (name) -> (...) -> {kind: name, value: {...}}
 
 ToPattern = lpeg.P
 
@@ -55,8 +53,8 @@ Name = Space * _Name
 
 stringPart = (avoidChr) ->
     return (1 - MatchAnyOf("#{avoidChr}\r\n\f\\"))
-DoubleQuotedString = Space * (MatchExact('"') * (ZeroOrMore(stringPart '"')/inject1("StringLit")) * MatchExact('"'))
-SingleQuotedString = Space * (MatchExact("'") * (ZeroOrMore(stringPart "'")/inject1("StringLit")) * MatchExact("'"))
+DoubleQuotedString = Space * (MatchExact('"') * (ZeroOrMore(stringPart '"')/ast.StringLit) * MatchExact('"'))
+SingleQuotedString = Space * (MatchExact("'") * (ZeroOrMore(stringPart "'")/ast.StringLit) * MatchExact("'"))
 
 _Digits = OneOrMore MatchRange "09"
 -- For long integer literals, eg 0ull or ulL
@@ -67,8 +65,8 @@ _Int = _Digits*_IntEnding + _HexInt
 _FloatStart = Union _Digits*(OneOrLess (MatchExact ".")*_Digits), (MatchExact ".")*_Digits
 _Float = _FloatStart * (OneOrLess MatchAnyOf("eE")*OneOrLess("-")*_Digits)
 
-Float = _Float / inject1("FloatLit")
-Int = _Int / inject1("IntLit")
+Float = _Float / ast.FloatLit
+Int = _Int / ast.IntLit
 Num = Space * (Int+Float)
 
 FactorOp = Space * Capture(MatchAnyOf "+-")
@@ -79,7 +77,6 @@ Shebang = MatchExact("#!") * (ZeroOrMore Complement Stop)
 
 -- can't have P(false) because it causes preceding patterns not to run
 Cut = ToPattern ()->false
-
 
 sym = (chars) -> Space * (MatchExact chars)
 symC = (chars) -> Space * Capture(MatchExact chars)
@@ -142,8 +139,13 @@ indentG = {
 
 lineEnding = OneOrMore(NonBreakSpace * Break)
 grammar = MatchGrammar extend indentG, {
-    gref.File -- Initial Rule          
-    File: (OneOrLess Shebang) * (gref.Block + CaptureTable(""))
+    gref.SourceCode -- Initial Rule
+    SourceCode: Union {
+        -- This could be a single expression, such as in a REPL...
+        gref.Expr 
+        -- Or it could be a whole file
+        (OneOrLess Shebang) * (gref.Block + CaptureTable(""))
+    }
     Block: CaptureTable(ZeroOrMore(gref.Line))
     Line: gref.CheckIndent * gref.Statement + NonBreakSpace*OneOrMore(Break)
 --    Block: CaptureTable(gref.Line * ZeroOrMore(OneOrMore(Break) * gref.Line))
@@ -155,11 +157,11 @@ grammar = MatchGrammar extend indentG, {
     }
     InBlock: gref.Advance * gref.Block * gref.PopIndent
     Body: OneOrMore(lineEnding) * gref.InBlock -- an indented block
-    LogicOperator: (gref.Expr *  LogicOp * gref.Expr)/injectArr("Operator")
-    While: sym("while") * gref.LogicOperator * gref.Body / injectArr("while")
+    LogicOperator: (gref.Expr *  LogicOp * gref.Expr)/ast.Operator
+    While: sym("while") * gref.LogicOperator * gref.Body / ast.While 
     Assign: (symC("=") + symC("-=") + symC("+=")) * gref.ExprList
-    AssignStmnt: gref.NameList * gref.Assign /injectArr("Assign")
-    Declare: _Name * gref.NameList * (OneOrLess gref.Assign) /injectArr("Declare")
+    AssignStmnt: gref.NameList * gref.Assign / ast.Assign
+    Declare: _Name * gref.NameList * (OneOrLess gref.Assign) / ast.Declare
     NameList: CaptureTable(Name * (ZeroOrMore sym(",")*Name))
 
     -- Expressions:
@@ -167,18 +169,18 @@ grammar = MatchGrammar extend indentG, {
     KeyValPair: Name * KeyValSep * gref.Expr / (key, value) -> {:key, :value}
     Object: StartBrace * CaptureTable OneOrLess(gref.KeyValPair * (ZeroOrMore sym(",") *gref.KeyValPair)) * EndBrace
     _Expr: Union {
-        Name/inject1("Ref")
+        Name/ast.Ref
         Num
         SingleQuotedString
         DoubleQuotedString
-        gref.Object/inject1("ObjectLit")
+        gref.Object/ast.ObjectLit
     }
     Expr: Union {
         gref.FuncCall
         gref._Expr
     }
     -- Note, FuncCall is both an expression and a statement
-    FuncCall: gref._Expr * sym("(") * gref.ExprList * sym(")") /injectArr("FuncCall")
+    FuncCall: gref._Expr * sym("(") * gref.ExprList * sym(")") /ast.FuncCall
 }
 
 parse = (codeString) -> 
