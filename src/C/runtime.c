@@ -95,7 +95,6 @@ void langGlobalsInit(int pstackSize) {
 
     printf("Mmap\n");
     langGlobals.pstack = (void**)mmap(NULL, pstackSize*sizeof(void*), PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-    langGlobals.pstack += pstackSize;
     printf("pstack\n");
     ggc_jitPointerStack = langGlobals.pstack;
     ggc_jitPointerStackTop = langGlobals.pstack;

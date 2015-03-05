@@ -17,7 +17,8 @@ ljContext = lj.Context()
 globalScope = require("runtime").makeGlobalScope()
 compile = (str, dump = false) ->
     ast = parse(str)
-    pretty(ast)
+    for i=1,#ast
+        pretty(ast[i])
     os.exit()
     print('-AST--------------------------------------------------')
     for astN in *ast
@@ -31,7 +32,13 @@ compile = (str, dump = false) ->
 
 log "Compiling function: "
 
-program = "print('The answer is ', 42)"
+program = "
+i = 10
+while i > 0
+    print('The answer is ', i)
+    i -= 1
+i = 0
+"
 f = compile(program, true)
 f()
 

@@ -9,6 +9,9 @@ lpeg.setmaxstack(10000)
 -- Here is'longhand' for the library.
 ------------------------------------------------------------------------------
 
+inject1 = (name) -> (val) -> {kind: name, value: val}
+injectArr = (name) -> (...) -> {kind: name, value: {...}}
+
 ToPattern = lpeg.P
 
 MatchAnyOf = lpeg.S
@@ -137,14 +140,20 @@ indentG = {
     CheckIndent: lpeg.Cmt(Indent, _cbCheckIndent), -- validates line is in correct indent
 }
 
+
+-- Mock AST
+nast = setmetatable {}, {
+        __index: (k) =>
+            injectArr(k)
+    }
 lineEnding = OneOrMore(NonBreakSpace * Break)
 grammar = MatchGrammar extend indentG, {
     gref.SourceCode -- Initial Rule
     SourceCode: Union {
-        -- This could be a single expression, such as in a REPL...
-        gref.Expr 
-        -- Or it could be a whole file
+        -- it could be a whole file
         (OneOrLess Shebang) * (gref.Block + CaptureTable(""))
+        -- or this could be a single expression, such as in a REPL...
+        gref.Expr 
     }
     Block: CaptureTable(ZeroOrMore(gref.Line))
     Line: gref.CheckIndent * gref.Statement + NonBreakSpace*OneOrMore(Break)
@@ -158,11 +167,11 @@ grammar = MatchGrammar extend indentG, {
     InBlock: gref.Advance * gref.Block * gref.PopIndent
     Body: OneOrMore(lineEnding) * gref.InBlock -- an indented block
     LogicOperator: (gref.Expr *  LogicOp * gref.Expr)/ast.Operator
-    While: sym("while") * gref.LogicOperator * gref.Body / ast.While 
+    While: sym("while") * gref.LogicOperator * gref.Body / ast.While
     Assign: (symC("=") + symC("-=") + symC("+=")) * gref.ExprList
     AssignStmnt: gref.NameList * gref.Assign / ast.Assign
     Declare: _Name * gref.NameList * (OneOrLess gref.Assign) / ast.Declare
-    NameList: CaptureTable(Name * (ZeroOrMore sym(",")*Name))
+    NameList: CaptureTable(Name/ast.Ref * (ZeroOrMore sym(",")*(Name/ast.Ref)))
 
     -- Expressions:
     ExprList: CaptureTable(gref.Expr * (ZeroOrMore sym(",")*gref.Expr))

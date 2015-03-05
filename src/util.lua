@@ -142,9 +142,9 @@ function newtype(methods)
     end
     typemeta.__index = methods
     if __DEBUGGING then
-        function methodsmeta:__index(k)
-            error("Key '"..k.."' does not exist!") 
-        end
+        --function methodsmeta:__index(k)
+            --error("Key '"..k.."' does not exist!") 
+        --end
         function type:__newindex(k, v)
             if v == nil then 
                 error("Cannot set '"..k.."' to nil") 

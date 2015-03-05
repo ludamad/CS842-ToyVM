@@ -19,14 +19,20 @@ toName = (T) ->
         if v == T
             return k
     return "(?)"
+
+toCommas = (args) ->
+    strs = ["#{val}" for val in *args]
+    return table.concat(strs, ', ')
+
 __INDENT = 1
 NodeT = (t) ->
-    t.__node = true
-    T = checkedType(t)
-    T.toString = () =>
-        __INDENT = 1
-        return tostring(@)
-    T.__tostring = () =>
+    t._node = true
+    t._expr or= false
+    t._assignable or= false
+    t._statement or= false
+    t.__init or= () =>
+    local T
+    t.__tostring or= () =>
         indentStr = ''
         lines = {toName(T.create)}
         for i=1,__INDENT do indentStr ..= '  '
@@ -45,87 +51,145 @@ NodeT = (t) ->
             append lines, "#{indentStr}#{t[i].name}: #{val}"
         __INDENT -= 1
         return table.concat(lines, '\n')
+    T = checkedType(t)
+    T.toString = () =>
+        __INDENT = 1
+        return tostring(@)
     return T.create -- Keep as function, less callback indirection
 
 ExprT = (t) ->
-    t.__expr = true
+    t._expr = true
     return NodeT(t)
 
-AssignableExprT = (t) ->
-    t.__assignable_expr == true
+AssignableT = (t) ->
+    t._assignable = true
     return NodeT(t)
 
 StatementT = (t) ->
-    t.__statement = true
+    t._statement = true
     return NodeT(t)
 PolyT = (t) ->
-    t.__expr = true
-    t.__statement = true
+    t._expr = true
+    t._statement = true
     return NodeT(t)
+
+M.typeSwitch = (val, table) =>
+    if val._expr and table.Expr
+        return table.Expr(val
+    elseif val._statement and table.Statement
+        return table.Statement(val))
+    elseif val._assignable and table.Assignable
+        return table.Assignable(val)
+    elseif val._node and table.Node
+        return table.Node(val)
+    elseif val._list and table.List
+        return table.List(val)
+
 --------------------------------------------------------------------------------
 -- Constructors for declaring checked AST fields
 --------------------------------------------------------------------------------
 Expr = checkerType {
     emitCheck: (code) =>
-        --append code, "assert(#{@name}.__expr)"
+        append code, @assert("#{@name}._expr")
 }
-AssignableExpr = checkerType {
+Assignable = checkerType {
     emitCheck: (code) =>
-        append code, "assert(#{@name}.__assignable_expr)"
+        append code, @assert("#{@name}._assignable")
 }
 Statement = checkerType {
     emitCheck: (code) => 
-        append code, "assert(#{@name}.__statement)"
+        append code, @assert("#{@name}._statement")
 }
 
 --------------------------------------------------------------------------------
 -- The AST types
 --------------------------------------------------------------------------------
-M.Ref = AssignableExprT {
+M.astTypes = {}
+A = M.astTypes
+A.RefStore = AssignableT {
+    String.name
+    __tostring: () =>
+        return "$#{@name}"
+}
+A.RefLoad = ExprT {
+    String.name
+    __tostring: () =>
+        return "$#{@name}"
+}
+
+A.Operator = ExprT {
+    Expr.left
+    String.op
+    Expr.right
+    __tostring: () =>
+        return "#{@left} #{@op} #{@right}"
+}
+
+A.FloatLit = ExprT {
+    String.value
+    __tostring: () =>
+        return @value
+}
+
+A.StringLit = ExprT {
+    String.value
+    __tostring: () =>
+        return "\"#{@value}\""
+}
+
+A.ObjectLit = ExprT {
     String.value
 }
 
-M.Operator = ExprT {
-    (List AssignableExpr).vars
-    (List Expr).values
-}
-
-M.FloatLit = ExprT {
+A.IntLit = ExprT {
     String.value
+    __tostring: () =>
+        return @value
 }
 
-M.StringLit = ExprT {
-    String.value
-}
-
-M.ObjectLit = ExprT {
-    String.value
-}
-
-M.IntLit = ExprT {
-    String.value
-}
-
-M.Declare = StatementT {
-    List(AssignableExpr).vars
+A.Declare = StatementT {
+    List(Assignable).vars
     List(Expr).values
 }
 
-M.While = StatementT {
-    List(AssignableExpr).vars
-    List(Expr).values
+A.While = StatementT {
+    Expr.condition
+    List(Statement).block
 }
 
-M.Assign = StatementT {
-    List(AssignableExpr).vars
+A.Assign = StatementT {
+    List(Assignable).vars
+    String.op
     List(Expr).values
+    __tostring: () =>
+        return "#{toCommas @vars} #{@op} #{toCommas @values}"
 }
 
-M.FuncCall = PolyT {
+A.FuncCall = PolyT {
     Expr.func
-    --Any.args
     List(Expr).args
     test: () => print "WEEE"
+    __tostring: () =>
+        return "#{@func}(#{toCommas @args})"
 }
+
+_installOperation = (criterion) -> (funcs) ->
+    name = funcs.methodName
+    for k, v in pairs A
+        if not criterion or T[criterion]
+            if funcs[k]
+                A[name] = k
+            elseif funcs.default
+                A[name] = funcs.default
+
+-- Code planting API:
+M.installNodeOperation       = _installOperation('_node')
+M.installExprOperation       = _installOperation('_expr')
+M.installAssignableOperation = _installOperation('_assignable')
+M.installStatementOperation  = _installOperation('_statement')
+
+-- Copy over AST nodes into main exported module
+for k,v in pairs A
+    M[k] = v
 
 return M
