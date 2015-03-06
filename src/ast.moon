@@ -33,10 +33,14 @@ NodeT = (t) ->
     t._fields = [field for field in *t] 
     t.init or= () =>
     local T
-    t.__tostring or= () =>
+    t._indent = () =>
         indentStr = ''
-        lines = {toName(T.create)}
         for i=1,__INDENT do indentStr ..= '  '
+        return indentStr
+
+    t.__tostring or= () =>
+        indent = @_indent()
+        lines = {toName(T.create)}
         __INDENT += 1
         for i=1,#t
             val = @[t[i].name]
@@ -123,6 +127,15 @@ Statement = checkerType {
 M.astTypes = {}
 A = M.astTypes
 
+A.FuncBody = StatementT {
+    List(Statement).body
+    __tostring: () =>
+        __INDENT += 1
+        f = "func()\n" .. table.concat(["#{v}" for v in *@body], '\n') .. "\nend"
+        __INDENT -= 1
+        return f
+}
+
 A.RefStore = AssignableT {
     String.name
     init: () =>
@@ -148,7 +161,7 @@ A.Operator = ExprT {
     String.op
     Expr.right
     __tostring: () =>
-        return "#{@left} #{@op} #{@right}"
+        return "(#{@left} #{@op} #{@right})"
 }
 
 A.FloatLit = ExprT {
@@ -190,7 +203,7 @@ A.Assign = StatementT {
     init: () =>
         assert(#@vars == #@values)
     __tostring: () =>
-        return "#{toCommas @vars} #{@op} #{toCommas @values}"
+        return "#{@_indent()}#{toCommas @vars} #{@op} #{toCommas @values}"
 }
 
 A.FuncCall = PolyT {
@@ -198,7 +211,7 @@ A.FuncCall = PolyT {
     List(Expr).args
     test: () => print "WEEE"
     __tostring: () =>
-        return "#{@func}(#{toCommas @args})"
+        return "#{@_indent()}#{@func}(#{toCommas @args})"
 }
 
 _codegenRecursor = (criterion = '_node', T, methodName) ->
@@ -231,8 +244,16 @@ _installOperation = (criterion) -> (funcs) ->
         _installRecursor(criterion, funcs.recurseName, methodName)
     for tname, T in pairs A
         if not criterion or T[criterion]
-            print methodName, tname, funcs.default
-            T[methodName] = tname and funcs[tname] or funcs.default
+            f = funcs[tname]
+            if T._expr
+                f or= funcs.Expr
+            if T._statement
+                f or= funcs.Statement
+            if T._assignable
+                f or= funcs.Assignable
+            f or= funcs.default
+            T[methodName] = f
+
 
 -- Code planting API:
 M.installOperation       = _installOperation(nil)
@@ -248,7 +269,7 @@ for tname, T in pairs A
         oldTS = T.__tostring
         T.__tostring = () =>
             if @dest
-                return "#{oldTS @}::#{@dest}"
+                return "#{oldTS @}->#{@dest}"
             return oldTS(@)
 
 return M

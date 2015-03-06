@@ -46,19 +46,26 @@ log "Compiling function: "
 compile = (str) ->
     ast = parse(str)
     fb = NC.FunctionBuilder(ljContext, {}, globalScope)
-    for node in *ast
-        print(node)
-    for node in *ast
-        node\symbolResolve(fb)
-    for node in *ast
-        print(node)
-    for node in *ast
-        node\stackResolve(fb)
-    for node in *ast
-        print(node)
+    print 'FRESH'
+    print ast
+    ast\symbolResolve(fb)
+    print 'SYMBOLIZED'
+    print ast
+    ast\stackResolve(fb)
+    print 'STACK ALLOC\'ED'
+    print ast
+    ast\compile(fb)
+    
+    -----
+    print 'IR Compiled--------------------------------------------------------------------------------'
+    fb\dump()
+    print 'ASM Compiled--------------------------------------------------------------------------------'
+    fb\compile()
+    fb\dump()
 
 program = "
-print(1)
+a = 1
+b = a / 2
 "
 compile(program, true)
 

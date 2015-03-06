@@ -79,13 +79,13 @@ struct LangGlobals {
     void*** pstackTop;
     void* emptyShape;
     void* defaultValue;
-} langGlobals;
+};
 
 void* langDefaultValue;
 
 void* langNewString(const char* value, size_t len);
 
-void langGlobalsInit(int pstackSize) {
+void langGlobalsInit(struct LangGlobals* globals, int pstackSize) {
     LangShapeMap esm = NULL;
     LangShape emptyShape = NULL;
     LangIndexMap eim = NULL;
@@ -94,11 +94,11 @@ void langGlobalsInit(int pstackSize) {
     GGC_PUSH_4(esm, emptyShape, eim, defaultValue);
 
     printf("Mmap\n");
-    langGlobals.pstack = (void**)mmap(NULL, pstackSize*sizeof(void*), PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+    globals->pstack = (void**)mmap(NULL, pstackSize*sizeof(void*), PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
     printf("pstack\n");
-    ggc_jitPointerStack = langGlobals.pstack;
-    ggc_jitPointerStackTop = langGlobals.pstack;
-    langGlobals.pstackTop = &ggc_jitPointerStackTop;
+    ggc_jitPointerStack = globals->pstack;
+    ggc_jitPointerStackTop = globals->pstack;
+    globals->pstackTop = &ggc_jitPointerStackTop;
 
     /* the empty shape */
     printf("eshape\n");
@@ -107,14 +107,14 @@ void langGlobalsInit(int pstackSize) {
     eim = GGC_NEW(LangIndexMap);
     GGC_WP(emptyShape, children, esm);
     GGC_WP(emptyShape, members, eim);
-    langGlobals.emptyShape = emptyShape;
-    langGlobals.defaultValue = langNewString("", 0);
-    langDefaultValue = langGlobals.defaultValue;
+    globals->emptyShape = emptyShape;
+    globals->defaultValue = langNewString("", 0);
+    langDefaultValue = globals->defaultValue;
 
     printf("POP & push\n");
     GGC_POP();
     {
-    	GGC_PUSH_3(langGlobals.emptyShape, langGlobals.defaultValue, langDefaultValue);
+    	GGC_PUSH_3(globals->emptyShape, globals->defaultValue, langDefaultValue);
         GGC_GLOBALIZE();
     }
 }

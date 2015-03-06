@@ -180,7 +180,6 @@ for i, cfuncName in ipairs {
     "jit_function_create",
     "jit_function_compile_entry",
     "jit_function_to_closure",
-    "jit_function_get_max_optimization_level",
     "jit_function_reserve_label",
     "jit_function_setup_entry",
     "jit_function_get_context",
@@ -203,6 +202,14 @@ for i, cfuncName in ipairs {
         "function M.Function:", methodName, "(...)\n", 
             "logV('", cfuncName,"', ...)\n", 
             "return libjit.", cfuncName, "(self.func, ...)\n",
+        "end\n"
+    }
+end
+
+do
+    addMethod {
+        "function M.Function:getMaxOptimizationLevel()\n", 
+            "return libjit.jit_function_get_max_optimization_level()\n",
         "end\n"
     }
 end

@@ -72,9 +72,11 @@ Float = _Float / ast.FloatLit
 Int = _Int / ast.IntLit
 Num = Space * (Int+Float)
 
-FactorOp = Space * Capture(MatchAnyOf "+-")
-TermOp = Space * Capture(MatchAnyOf "*/%^")
+-- In increase precendence:
 LogicOp = Space * Capture(MatchAnyOf "<>")
+Op1 = Space * Capture(MatchAnyOf "%+%-")
+Op2 = Space * Capture(MatchAnyOf "%*%/%%")
+Op3 = Space * Capture(MatchAnyOf "%^")
 
 Shebang = MatchExact("#!") * (ZeroOrMore Complement Stop)
 
@@ -141,6 +143,8 @@ indentG = {
 }
 
 
+opWrap = (op) -> gref._Expr * op * gref.Expr / ast.Operator
+
 -- Mock AST
 nast = setmetatable {}, {
         __index: (k) =>
@@ -151,7 +155,7 @@ grammar = MatchGrammar extend indentG, {
     gref.SourceCode -- Initial Rule
     SourceCode: Union {
         -- it could be a whole file
-        (OneOrLess Shebang) * (gref.Block + CaptureTable(""))
+        (OneOrLess Shebang) * ( (gref.Block + CaptureTable("")) /  ast.FuncBody) 
         -- or this could be a single expression, such as in a REPL...
         gref.Expr 
     }
@@ -166,8 +170,7 @@ grammar = MatchGrammar extend indentG, {
     }
     InBlock: gref.Advance * gref.Block * gref.PopIndent
     Body: OneOrMore(lineEnding) * gref.InBlock -- an indented block
-    LogicOperator: (gref.Expr *  LogicOp * gref.Expr)/ast.Operator
-    While: sym("while") * gref.LogicOperator * gref.Body / ast.While
+    While: sym("while") * gref.Expr * gref.Body / ast.While
     Assign: (symC("=") + symC("-=") + symC("+=")) * gref.ExprList
     AssignStmnt: gref.RefStoreList * gref.Assign / ast.Assign
     Declare: _Name * gref.RefStoreList * (OneOrLess gref.Assign) / ast.Declare
@@ -177,6 +180,12 @@ grammar = MatchGrammar extend indentG, {
     ExprList: CaptureTable(gref.Expr * (ZeroOrMore sym(",")*gref.Expr))
     KeyValPair: Name * KeyValSep * gref.Expr / (key, value) -> {:key, :value}
     Object: StartBrace * CaptureTable OneOrLess(gref.KeyValPair * (ZeroOrMore sym(",") *gref.KeyValPair)) * EndBrace
+    Operator: Union {
+        opWrap LogicOp
+        opWrap Op1
+        opWrap Op2
+        opWrap Op3
+    }
     _Expr: Union {
         Name/ast.RefLoad
         Num
@@ -186,6 +195,8 @@ grammar = MatchGrammar extend indentG, {
     }
     Expr: Union {
         gref.FuncCall
+        gref.Operator
+        gref._Expr * symC('/') * gref._Expr
         gref._Expr
     }
     -- Note, FuncCall is both an expression and a statement
