@@ -1647,4 +1647,9 @@ M.ptr = libjit.jit_type_void_ptr
 M.typeGetOffset = libjit.jit_type_get_offset
 M.valueSetAddressable = libjit.jit_value_set_addressable
 
+local blankLabel = ffi.cast("jit_label_t", ffi.cast("unsigned int", -1))
+function M.Label()
+    return ffi.new("jit_label_t[1]", blankLabel)
+end
+
 return M

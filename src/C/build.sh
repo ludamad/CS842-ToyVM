@@ -14,4 +14,4 @@ function buildLibJit() {
 }
 
 buildGggcAndRuntime
-#buildLibJit
+buildLibJit

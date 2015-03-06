@@ -58,7 +58,10 @@ stackStore = (f, index, val) ->
     f\storeRelative(f.stackFrameVal, VAL_SIZE*index, val)
 stackLoad = (f, index) ->
     print 'stackLoad', f, index
-    f\loadRelative(f.stackFrameVal, VAL_SIZE*index, lj.ulong)
+    val = f\loadRelative(f.stackFrameVal, VAL_SIZE*index, lj.ulong)
+    shift = f\shl(val, longConst(f, 32))
+    print 'shift', shift
+    return val
 -- Offset is 0 or 1:
 StackRef = newtype {
     init: (@index = false) =>
@@ -292,7 +295,7 @@ ast.installOperation {
         i2 = unboxInt(f,val2)
         print 'i2'
         ret = op(f,i1, i2) 
-        return boxInt(f, ret)
+        return boxer(f, ret)
     FuncCall: (f) =>
         @_compileRecurse(f)
         fVal = loadE(f, @func)
@@ -316,13 +319,13 @@ ast.installOperation {
         compileFuncReturn(f, {})
     If: (f) =>
         isTrue = truthCheck(f, @condition\compileVal(f))
-        @labelPtr = ffi.new("jit_label_t[1]")
-        f\branchIfNot(isTrue, @labelPtr)
+        @labelEnd = lj.Label()
+        f\branchIfNot(isTrue, @labelEnd)
         @block\compile(f)
-        f\label(@labelPtr)
+        f\label(@labelEnd)
     While: (f) =>
-        @labelCheck = ffi.new("jit_label_t[1]")
-        @labelLoopStart = ffi.new("jit_label_t[1]")
+        @labelCheck = lj.Label()
+        @labelLoopStart = lj.Label()
         f\branch(@labelCheck)
         -- Resolve block label:
         f\label(@labelLoopStart)
@@ -333,7 +336,7 @@ ast.installOperation {
         f\branchIf(isTrue, @labelLoopStart)
         print "after"
     Block: (f) =>
-        --@_compileRecurse(f)
+        @_compileRecurse(f)
     Expr: (f) =>
         @compiledVal = @compileVal(f)
         if @dest
@@ -410,7 +413,7 @@ M.FunctionBuilder = newtype {
         stackStr = stackStr\sub(1, #stackStr-3)
         d = @dump()\split('\n')
         nameCache = {}
-        names = {"foo", "bar", "baz", "cindy", "alpha", "bravo", "wilfrid", "tusk", "sam", "valz", "sin"}
+        names = {"foo", "bar", "baz", "cindy", "alpha", "bravo", "wilfrid", "tusk", "sam", "valz", "sin", 'pindet', 'sukki', 'oPtr', 'ranDat'}
         cntr = 0
         nameBetter = (digits) ->
             if nameCache[digits] 
