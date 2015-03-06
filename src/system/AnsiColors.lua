@@ -95,6 +95,20 @@ function M.from_rgb(color)
    return AnsiColor("38;5;" .. rgb_to_xterm(color))
 end
 
+_cols = {M.WHITE, M.RED, M.GREEN, M.YELLOW, M.BLUE, M.MAGENTA, M.CYAN}
+
+function M.pickCol(val)
+    local index = val
+    if type(val) == 'string' then
+        index = 0
+        for i=1,#val do
+            index = index + string.byte(val, i) 
+        end
+    end
+    local n = #_cols
+    return _cols[(index % n) + 1]
+end
+
 function M.print(text, col, --[[Optional]] sgr_params)
     io.write(col(text, sgr_params))
     io.flush(io.stdout)

@@ -27,8 +27,8 @@ intConst = (f, v) ->
 taggedIntVal = (f, num) ->
     val = ffi.new("uint64_t[1]")
     int_view = ffi.cast("int*", val)
-    int_view[0] = num 
-    int_view[1] = TYPE_TAG_INT
+    int_view[0] = TYPE_TAG_INT
+    int_view[1] = num 
     return f\createLongConstant(lj.ulong, val[0])
 
 unboxInt = (f, val) ->
@@ -339,7 +339,37 @@ M.FunctionBuilder = newtype {
     smartDump: () =>
         {:pstackTop} = @ljContext.globals[0]
         f = ffi.cast("unsigned long", pstackTop)
-        print @dump()
+        stackStr = tostring(f) 
+        stackStr = stackStr\sub(1, #stackStr-3)
+        d = @dump()\split('\n')
+        nameCache = {}
+        names = {"foo", "bar", "baz", "cindy", "alpha", "bravo", "wilfrid", "tusk", "sam", "valz", "sin"}
+        cntr = 0
+        nameBetter = (digits) ->
+            if nameCache[digits] 
+                return nameCache[digits]
+            nameCache[digits] = names[cntr%#names+1]
+            if cntr >= #names
+                nameCache[digits] ..= math.floor(cntr/#names)
+            cntr += 1
+            return nameCache[digits]
+        for i=1,#d
+            for k, v in pairs @scope.parentScope.variables
+                f = ffi.cast("unsigned long", v.value.func)
+                str = tostring(f) 
+                str = str\sub(1, #str-3)
+                d[i] = d[i]\gsub(str, col.GREEN("$#{v.name}",col.BOLD))
+            d[i] = d[i]\gsub(stackStr, col.YELLOW('$stack',col.BOLD))
+            d[i] = d[i]\gsub 'load_relative_long%((.*), (.*)%)', (a,b) ->
+                return "#{a}[#{b}]" 
+            d[i] = d[i]\gsub 'store_relative_long%((.*), (.*), (.*)%)', (a,b,c) ->
+                c = tonumber(c)/8
+                return "#{a}[#{c}] = #{b}" 
+            d[i] = d[i]\gsub 'l(%d+)', (digits) ->
+                color = col.pickCol(tonumber digits)
+                return color(nameBetter digits)
+
+        print table.concat(d,'\n')
 }
 
 return M

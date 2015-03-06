@@ -49,7 +49,9 @@ compile = (str) ->
 --   print "CALLINGFUNC:", f(0)
 
 program = "
-a = 21
+a = 21 + 1
+print(a)
+a = a + 1
 print(a)
 "
 s="print(a,2,3, \"hehe\")
