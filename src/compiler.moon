@@ -36,11 +36,13 @@ taggedIntVal = (f, num) ->
     return f\createLongConstant(lj.ulong, numPacked[0])
 
 unboxInt = (f, val) ->
-    return f\shr(val, intConst(f, 32)) 
+    return f\shr(val, longConst(f, 32)) 
 boxInt = (f, val) ->
-    return f\add(longConst(f, M.TYPE_TAG_INT), f\shl(val, intConst(f, 32))) 
+    shift = f\shl(val, longConst(f, 32))
+    print shift, 'shift'
+    return f\add(longConst(f, M.TYPE_TAG_INT), shift) 
 boxBool = (f, val) ->
-    return f\add(longConst(f, M.TYPE_TAG_BOOL), f\shl(val, intConst(f, 32))) 
+    return f\add(longConst(f, M.TYPE_TAG_BOOL), f\shl(val, longConst(f, 32))) 
 
 truthCheck = (f, val) ->
     -- AND against a string of almost all 1
@@ -55,6 +57,7 @@ cFaintW = (s) -> col.WHITE(s, col.FAINT)
 stackStore = (f, index, val) ->
     f\storeRelative(f.stackFrameVal, VAL_SIZE*index, val)
 stackLoad = (f, index) ->
+    print 'stackLoad', f, index
     f\loadRelative(f.stackFrameVal, VAL_SIZE*index, lj.ulong)
 -- Offset is 0 or 1:
 StackRef = newtype {
@@ -151,6 +154,12 @@ ast.installOperation {
         if sym == nil
             error("No such symbol '#{@name}'.")
         @symbol = sym
+    While: (f) =>
+        @_symbolRecurse(f)
+        @condition.dest = false
+    If: (f) =>
+        @_symbolRecurse(f)
+        @condition.dest = false
     -- Statements:
     Assign: (f) =>
         for i=1,#@vars
@@ -247,6 +256,9 @@ ast.installOperation {
     recurseName: "_compileValRecurse"
     -- AST node handlers:
     RefLoad: (f) => 
+        print "REFLOAD"
+        boxInt f, @symbol\load(f)
+        print "REFLOAD2"
         return @symbol\load(f)
     IntLit: (f) =>
         return taggedIntVal(f, tonumber @value)
@@ -260,26 +272,26 @@ ast.installOperation {
         if @op == '..'
             func = runtime.stringConcat
             return f\call(func, 'stringConcat', {val1, val2})
-        switch @op
-            when '<'
-                return boxBool f.lt(f, unboxInt(f, val1), unboxInt(f, val2))
-            when '>'
-                return boxBool f.gt(f, unboxInt(f, val1), unboxInt(f, val2))
-            when '>='
-                return boxBool f.gte(f, unboxInt(f, val1), unboxInt(f, val2))
-            when '<='
-                return boxBool f.lte(f, unboxInt(f, val1), unboxInt(f, val2))
-            when '=='
-                return boxBool f.eq(f, unboxInt(f, val1), unboxInt(f, val2))
-        op = switch @op
-            when '-' then f.sub
-            when '+' then f.add
-            when '*' then f.mul
-            when '/' then f.div
-            when '%' then f.rem
-        compileNumCheck(val1)
-        compileNumCheck(val2)
-        ret = op(f, unboxInt(f, val1), unboxInt(f, val2))
+        print "Compiling op: #{@left} #{@op} #{@right}"
+        op, boxer = switch @op
+            when '-' then f.sub, boxInt
+            when '+' then f.add, boxInt
+            when '*' then f.mul, boxInt
+            when '/' then f.div, boxInt
+            when '%' then f.rem, boxInt
+            when '<' then f.lt, boxBool
+            when '>' then f.gt, boxBool
+            when '>=' then f.gte, boxBool
+            when '<=' then f.lte, boxBool
+            when '==' then f.eq, boxBool
+        if op != '=='
+            compileNumCheck(val1)
+            compileNumCheck(val2)
+        i1 = unboxInt(f, val1)
+        print 'i1'
+        i2 = unboxInt(f,val2)
+        print 'i2'
+        ret = op(f,i1, i2) 
         return boxInt(f, ret)
     FuncCall: (f) =>
         @_compileRecurse(f)
@@ -313,17 +325,15 @@ ast.installOperation {
         @labelLoopStart = ffi.new("jit_label_t[1]")
         f\branch(@labelCheck)
         -- Resolve block label:
-        f\label(@labelCheck)
-        --@block\compile(f)
+        f\label(@labelLoopStart)
+        @block\compile(f)
         -- Resolve check label:
         f\label(@labelCheck)
         isTrue = truthCheck(f, @condition\compileVal(f))
         f\branchIf(isTrue, @labelLoopStart)
         print "after"
     Block: (f) =>
-        print "BLOCK"
-        @_compileRecurse(f)
-        print "BLOCK2"
+        --@_compileRecurse(f)
     Expr: (f) =>
         @compiledVal = @compileVal(f)
         if @dest

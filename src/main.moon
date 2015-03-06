@@ -51,14 +51,9 @@ compile = (str) ->
 
 program = "
 i = 1
-s = ''
 while i < 10
-    print(i)
-    s ..= 'test'
     i += 1
-    while i < 10
-        print(2)
-print(s)
+print(i)
 "
 compile(program, true)
 
