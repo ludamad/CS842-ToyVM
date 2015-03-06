@@ -26,21 +26,6 @@ ljContext = lj.Context()
 
 globalScope = require("runtime").makeGlobalScope()
 
---compile = (str, dump = false) ->
---    ast = parse(str)
---    for i=1,#ast
---        pretty(ast[i])
---    os.exit()
---    print('-AST--------------------------------------------------')
---    for astN in *ast
---        print(astToString astN)
---    funcContext = C.FunctionBuilder(ljContext, {Param "a", Param "b"}, globalScope)
---    funcContext\compileIR(ast)
---    print('-LibJIT IR--------------------------------------------')
---    print(funcContext\dump())
---    funcContext\compileAsm()
---    return funcContext
-
 log "Compiling function: "
 
 compile = (str) ->

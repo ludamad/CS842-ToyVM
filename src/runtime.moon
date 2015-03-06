@@ -7,13 +7,14 @@ ffi.cdef [[
     typedef struct {
         int val, tag;
     } LangValue;
-    typedef uint64_t (*LangFunc)(LangValue* args, unsigned int n);
+    typedef unsigned int (*LangFunc)(unsigned int n);
 ]]
 
 -- Runtime functions.
 -- LuaJIT 'converts' these to C pointers callable by libjit, what a dear ...
 funcs = {
-    print: (args, n) ->
+    print: (n) ->
+        -- TODO read args from stack
        for i=0,tonumber(n)-1
           if i >= 1 
               io.write '\t'
