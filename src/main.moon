@@ -43,18 +43,22 @@ compile = (str) ->
     fb\smartDump()
     --print 'ASM Compiled--------------------------------------------------------------------------------'
     fb\compile()
-    --fb\dump()
+    --print fb\dump()
     f = fb\toCFunction()
     f(0)
 --   print "CALLINGFUNC:", f(0)
 
+
 program = "
-a = 'hello world'
-a ..= 'test'
-print(a)
-"
-s="print(a,2,3, \"hehe\")
-print(a)
+i = 1
+s = ''
+while i < 10
+    print(i)
+    s ..= 'test'
+    i += 1
+    while i < 10
+        print(2)
+print(s)
 "
 compile(program, true)
 

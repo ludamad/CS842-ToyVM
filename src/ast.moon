@@ -31,14 +31,15 @@ NodeT = (t) ->
     t._fields = [field for field in *t] 
     t.init or= () =>
     local T
-    t._indent = () =>
+    t._indent = (d=0) =>
         indentStr = ''
-        for i=1,__INDENT do indentStr ..= '  '
+        for i=1,__INDENT+d do indentStr ..= '  '
         return indentStr
 
     t.__tostring or= () =>
         indent = @_indent()
         lines = {toName(T.create)}
+        indentStr = @_indent()
         __INDENT += 1
         for i=1,#t
             val = @[t[i].name]
@@ -52,6 +53,7 @@ NodeT = (t) ->
             else
                 val = pretty_tostring(val)
             append lines, "#{indentStr}#{t[i].name}: #{val}"
+
         __INDENT -= 1
         return table.concat(lines, '\n')
     T = checkedType(t)
@@ -129,7 +131,7 @@ A.FuncBody = StatementT {
     List(Statement).body
     __tostring: () =>
         __INDENT += 1
-        f = "func()\n" .. table.concat(["#{v}" for v in *@body], '\n') .. "\nend"
+        f = "func()\n" .. table.concat(["#{@_indent()}#{v}" for v in *@body], '\n') .. "\nend"
         __INDENT -= 1
         return f
 }
@@ -191,9 +193,35 @@ A.Declare = StatementT {
     List(Expr).values
 }
 
+A.Block = StatementT {
+    List(Statement).body
+    __tostring: () =>
+        __INDENT += 1
+        f = '\n'..table.concat(["#{@_indent()}#{v}" for v in *@body], '\n')
+        __INDENT -= 1
+        return f
+}
+
 A.While = StatementT {
     Expr.condition
-    List(Statement).block
+    Statement.block
+}
+
+A.If = StatementT {
+    Expr.condition
+    Statement.block
+}
+
+A.ForNum = StatementT {
+    Assignable.var
+    List(Expr).limits
+    Statement.block
+}
+
+A.ForObj = StatementT {
+    List(Assignable).vars
+    List(Expr).vars
+    Statement.block
 }
 
 A.Assign = StatementT {
@@ -203,7 +231,9 @@ A.Assign = StatementT {
     init: () =>
         assert(#@vars == #@values)
     __tostring: () =>
-        return "#{@_indent()}#{toCommas @vars} #{@op} #{toCommas @values}"
+        op = @op
+        if op ~= '=' then op ..= '='
+        return "#{toCommas @vars} #{op} #{toCommas @values}"
 }
 
 A.FuncCall = PolyT {
@@ -211,7 +241,7 @@ A.FuncCall = PolyT {
     List(Expr).args
     test: () => print "WEEE"
     __tostring: () =>
-        return "#{@_indent()}#{@func}(#{toCommas @args})"
+        return "#{@func}(#{toCommas @args})"
 }
 
 _codegenRecursor = (criterion = '_node', T, methodName) ->

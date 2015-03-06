@@ -15,7 +15,11 @@ M = {} -- Module
 INT_SIZE = 4
 VAL_SIZE = 8
 
-TYPE_TAG_INT = 1
+-- Anything that successfully AND's with
+-- almost all 0s into 0 is true
+M.TYPE_TAG_BOOL = 1
+M.TYPE_TAG_INT = 3
+M.TYPE_TAG_FLOAT = 5
 
 -- Utility methods:
 
@@ -25,30 +29,34 @@ intConst = (f, v) ->
     return f\createNintConstant(lj.uint, ffi.cast("unsigned int", v))
 -- Make a constant in our tagged format:
 taggedIntVal = (f, num) ->
-    val = ffi.new("uint64_t[1]")
-    int_view = ffi.cast("int*", val)
-    int_view[0] = TYPE_TAG_INT
-    int_view[1] = num 
-    return f\createLongConstant(lj.ulong, val[0])
+    numPacked = ffi.new("uint64_t[1]")
+    val = ffi.cast("LangValue*", numPacked)[0]
+    val.tag = M.TYPE_TAG_INT
+    val.val = num 
+    return f\createLongConstant(lj.ulong, numPacked[0])
 
 unboxInt = (f, val) ->
     return f\shr(val, intConst(f, 32)) 
 boxInt = (f, val) ->
-    return f\add(longConst(f, 1), f\shl(val, intConst(f, 32))) 
+    return f\add(longConst(f, M.TYPE_TAG_INT), f\shl(val, intConst(f, 32))) 
+boxBool = (f, val) ->
+    return f\add(longConst(f, M.TYPE_TAG_BOOL), f\shl(val, intConst(f, 32))) 
+
+truthCheck = (f, val) ->
+    -- AND against a string of almost all 1
+    -- since 000..0 and 000..1 are the only false values.
+    TRUTH_CHECKER = longConst(f, -2)
+    return f\_and(val, TRUTH_CHECKER), longConst(f, 0)
 --------------------------------------------------------------------------------
 -- Various symbol types for the compiler.
 --------------------------------------------------------------------------------
+
 cFaintW = (s) -> col.WHITE(s, col.FAINT)
 stackStore = (f, index, val) ->
     f\storeRelative(f.stackFrameVal, VAL_SIZE*index, val)
-stackStoreHalf = (f, index, offset, val) ->
-    f\storeRelative(f.stackFrameVal, VAL_SIZE*index + offset * INT_SIZE, val)
 stackLoad = (f, index) ->
     f\loadRelative(f.stackFrameVal, VAL_SIZE*index, lj.ulong)
 -- Offset is 0 or 1:
-stackLoadHalf = (f, index, offset) ->
-    f\loadRelative(f.stackFrameVal, VAL_SIZE*index + offset * INT_SIZE, lj.uint)
-
 StackRef = newtype {
     init: (@index = false) =>
     resolve: (f) =>
@@ -87,9 +95,12 @@ M.Constant = newtype {
     load: (f) => 
         if getmetatable(@value) == lj.NativeFunction
             return longConst(f, @value.func)
+        if type(@value) == 'function'
+            return @.value(f)
         return @value
     __tostring: () => col.GREEN("$#{@name}", col.FAINT)
 }
+
 --------------------------------------------------------------------------------
 -- The scope object, arranged in a stack.
 --------------------------------------------------------------------------------
@@ -106,6 +117,7 @@ M.Scope = newtype {
             scope = scope.parentScope
         return nil
 }
+
 --------------------------------------------------------------------------------
 -- First pass of compilation:
 --  - Resolve symbols
@@ -150,6 +162,7 @@ ast.installOperation {
             var.symbol\link(val)
         @op = '=' -- For good measure, since operation was handled.
 }
+
 --------------------------------------------------------------------------------
 -- Second pass of compilation:
 --  - Resolve stack locations
@@ -228,6 +241,7 @@ getStringPtr = (str) ->
     stringPtrs[str] = ptr
     return ptr
 
+
 ast.installOperation {
     methodName: "compileVal"
     recurseName: "_compileValRecurse"
@@ -246,6 +260,17 @@ ast.installOperation {
         if @op == '..'
             func = runtime.stringConcat
             return f\call(func, 'stringConcat', {val1, val2})
+        switch @op
+            when '<'
+                return boxBool f.lt(f, unboxInt(f, val1), unboxInt(f, val2))
+            when '>'
+                return boxBool f.gt(f, unboxInt(f, val1), unboxInt(f, val2))
+            when '>='
+                return boxBool f.gte(f, unboxInt(f, val1), unboxInt(f, val2))
+            when '<='
+                return boxBool f.lte(f, unboxInt(f, val1), unboxInt(f, val2))
+            when '=='
+                return boxBool f.eq(f, unboxInt(f, val1), unboxInt(f, val2))
         op = switch @op
             when '-' then f.sub
             when '+' then f.add
@@ -259,7 +284,6 @@ ast.installOperation {
     FuncCall: (f) =>
         @_compileRecurse(f)
         fVal = loadE(f, @func)
-        logV "Calling #{f}"
         stackLoc = @args[#@args].dest.index
         callSpace = longConst(f, VAL_SIZE * (stackLoc+1))
         skipFiddle = (stackLoc + 1 == f.stackPtrsUsed)
@@ -270,7 +294,7 @@ ast.installOperation {
             f\storeRelative(f.stackTopPtr, 0, f.stackTopVal)
         return val 
 }
-   
+
 ast.installOperation {
     methodName: "compile"
     recurseName: "_compileRecurse"
@@ -278,6 +302,28 @@ ast.installOperation {
         compileFuncPrelude(f)
         @_compileRecurse(f)
         compileFuncReturn(f, {})
+    If: (f) =>
+        isTrue = truthCheck(f, @condition\compileVal(f))
+        @labelPtr = ffi.new("jit_label_t[1]")
+        f\branchIfNot(isTrue, @labelPtr)
+        @block\compile(f)
+        f\label(@labelPtr)
+    While: (f) =>
+        @labelCheck = ffi.new("jit_label_t[1]")
+        @labelLoopStart = ffi.new("jit_label_t[1]")
+        f\branch(@labelCheck)
+        -- Resolve block label:
+        f\label(@labelCheck)
+        --@block\compile(f)
+        -- Resolve check label:
+        f\label(@labelCheck)
+        isTrue = truthCheck(f, @condition\compileVal(f))
+        f\branchIf(isTrue, @labelLoopStart)
+        print "after"
+    Block: (f) =>
+        print "BLOCK"
+        @_compileRecurse(f)
+        print "BLOCK2"
     Expr: (f) =>
         @compiledVal = @compileVal(f)
         if @dest
@@ -385,7 +431,8 @@ M.FunctionBuilder = newtype {
                 if getmetatable(v) == lj.NativeFunction 
                     replaceConstant(k, v.func)
             for k, v in pairs @scope.parentScope.variables
-                replaceConstant(v.name, v.value.func)
+                if type(v.value) == 'table'
+                    replaceConstant(v.name, v.value.func)
             replace '.L:%s*', () ->
                 s = col.WHITE("--- Section #{cnt} ---", col.FAINT)
                 cnt += 1
@@ -406,6 +453,14 @@ M.FunctionBuilder = newtype {
                 arr = asPtr[0].array[0]
                 newStr = ffi.string(arr.a__data, arr.length - 1)
                 return col.MAGENTA("\"#{newStr}\"", col.BOLD)
+            replace '(%d+)', (digits) ->
+                if tonumber(digits) < 4294967296
+                    return digits
+                endChr = ffi.new('char*[1]')
+                num = ffi.C.strtoull(digits, endChr, 10)
+                numPtr = ffi.new('uint64_t[1]', num)
+                val = ffi.cast('LangValue*', numPtr)[0]
+                return col.GREEN("#{val.val}" , col.BOLD).. col.WHITE("!#{val.tag}", col.FAINT)
 
         print table.concat(d,'\n')
 }

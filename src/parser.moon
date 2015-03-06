@@ -143,7 +143,6 @@ indentG = {
     CheckIndent: lpeg.Cmt(Indent, _cbCheckIndent), -- validates line is in correct indent
 }
 
-
 opWrap = (op) -> gref._Expr * op * gref.Expr / ast.Operator
 
 -- Mock AST
@@ -164,14 +163,20 @@ grammar = MatchGrammar extend indentG, {
     Line: gref.CheckIndent * gref.Statement + NonBreakSpace*OneOrMore(Break)
 --    Block: CaptureTable(gref.Line * ZeroOrMore(OneOrMore(Break) * gref.Line))
     Statement: Union {
-        gref.While
+        gref.Loop
+        gref.If
         gref.AssignStmnt
         gref.Declare
         gref.FuncCall
     }
     InBlock: gref.Advance * gref.Block * gref.PopIndent
-    Body: OneOrMore(lineEnding) * gref.InBlock -- an indented block
-    While: sym("while") * gref.Expr * gref.Body / ast.While
+    Body: OneOrMore(lineEnding) * gref.InBlock / ast.Block -- an indented block
+    Loop: Union {
+        sym('while') * gref.Expr*gref.Body/ast.While
+        sym("for") * gref.RefStoreList * sym("in") * gref.ExprList * gref.Body / ast.ForObj
+        sym("for") * (Name/ast.RefStore) * sym("=") * gref.ExprList * gref.Body / ast.ForNum
+    }
+    If: sym("if") * gref.Expr * gref.Body / ast.If
     Assign: (gref._Oper*MatchExact("=")  + symC("=")) * gref.ExprList
     AssignStmnt: gref.RefStoreList * gref.Assign / ast.Assign
     Declare: _Name * gref.RefStoreList * (OneOrLess gref.Assign) / ast.Declare

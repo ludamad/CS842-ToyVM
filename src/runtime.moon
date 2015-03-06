@@ -10,6 +10,8 @@ ffi.cdef [[
     typedef unsigned int (*LangFunc)(unsigned int n);
 ]]
 
+longConst = (f, v) ->
+    return f\createLongConstant(lj.ulong, ffi.cast("int64_t",v))
 lcast = (v) -> ffi.cast 'uint64_t', v
 local C 
 makeGlobalScope = (ljContext) ->
@@ -25,14 +27,18 @@ makeGlobalScope = (ljContext) ->
            for i=0,tonumber(n)-1
               if i >= 1 
                   io.write '\t'
-              if args[i].tag == 1
-                  -- Assumg integer!
+              if args[i].tag == C.TYPE_TAG_INT
                   io.write(args[i].val)
+              elseif args[i].tag == C.TYPE_TAG_BOOL
+                  if args[i].val ~= 0
+                      io.write("true")
+                  else
+                      io.write("false")
               else -- Assume string!
                   asString = ffi.cast("void**", args + i)[0]
                   librun.langStringPrint(asString)
            io.write('\n')
-           return ffi.new("uint64_t", 0)
+           return 0
     }
 
     -- Wrap as runtime funcs:
@@ -40,6 +46,14 @@ makeGlobalScope = (ljContext) ->
         funcs[k] = lj.NativeFunction(ffi.cast("LangFunc", v), lj.ulong, {lj.ptr, lj.uint})
 
     for k,v in pairs(funcs)
+        scope\declare(C.Constant(k, v))
+
+    values = {
+        "true": (f) -> longConst(f, 4294967297)
+        "false": (f) -> longConst(f, 1)
+    }
+
+    for k,v in pairs(values)
         scope\declare(C.Constant(k, v))
     return scope
 

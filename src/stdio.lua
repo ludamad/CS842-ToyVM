@@ -4,6 +4,8 @@ ffi.cdef [[
 struct __FILE;
 typedef struct __FILE* FILE;
 
+unsigned long long int strtoull(const char *nptr, char **endptr,
+                                int base);
 int remove (__const char *__filename) __attribute__ ((__nothrow__ , __leaf__));
 int rename (__const char *__old, __const char *__new) __attribute__ ((__nothrow__ , __leaf__));
 
