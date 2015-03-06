@@ -2,6 +2,7 @@ local table = table
 local ffi = require "ffi"
 local C = ffi.C -- The C namespace
 local libjit = ffi.load("./build/libjit.so")
+require "stdio"
 
 local M = {} -- Module
 
@@ -95,7 +96,18 @@ end
 
 function M.Function:dump(name)
     name = name or ""
-    return libjit.jit_dump_function(C.stdout, self.func, name)
+    local fname = C.tmpnam(nil)
+    local file = C.fopen(fname, "w")
+    libjit.jit_dump_function(file, self.func, name)
+    C.fclose(file)
+    local file = C.fopen(fname, "r")
+    local parts = {}
+    buffer = ffi.new("char[256]")
+    while C.feof(file) == 0 do
+        C.fgets(buffer, 256, file)
+        append(parts, ffi.string(buffer))
+    end
+    return table.concat(parts)
 end
 
 function M.Function:_not(value) 

@@ -19,6 +19,7 @@ makeGlobalScope = (ljContext) ->
     -- LuaJIT 'converts' these to C pointers callable by libjit, what a dear ...
     funcs = {
         print: (n) ->
+           print "VICTORY"
            {:pstackTop} = ljContext.globals[0]
            args = ffi.cast("LangValue*",pstackTop[0]) - n
            for i=0,tonumber(n)-1

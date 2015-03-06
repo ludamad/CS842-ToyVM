@@ -22,7 +22,7 @@ import parse, astToString from require "parser"
 log "Creating context: "
 ljContext = lj.Context()
 
-globalScope = require("runtime").makeGlobalScope()
+globalScope = require("runtime").makeGlobalScope(ljContext)
 
 log "Compiling function: "
 
@@ -40,15 +40,20 @@ compile = (str) ->
     ast\compile(fb)
     -----
     print 'IR Compiled--------------------------------------------------------------------------------'
-    fb\dump()
+    fb\smartDump()
     --print 'ASM Compiled--------------------------------------------------------------------------------'
     fb\compile()
     --fb\dump()
     f = fb\toCFunction()
-    print "CALLINGFUNC:", f(0)
+    f(0)
+--   print "CALLINGFUNC:", f(0)
 
 program = "
-a = 1
+a = 21
+print(a)
+"
+s="print(a,2,3, \"hehe\")
+print(a)
 "
 compile(program, true)
 

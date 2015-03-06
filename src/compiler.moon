@@ -34,7 +34,7 @@ taggedIntVal = (f, num) ->
 unboxInt = (f, val) ->
     return f\shr(val, intConst(f, 32)) 
 boxInt = (f, val) ->
-    return f\add(longConst(f, 1), f\shr(val, intConst(f, 32))) 
+    return f\add(longConst(f, 1), f\shl(val, intConst(f, 32))) 
 --------------------------------------------------------------------------------
 -- Various symbol types for the compiler.
 --------------------------------------------------------------------------------
@@ -180,7 +180,7 @@ loadE = (f,e) ->
 --------------------------------------------------------------------------------
 -- Sets up our stack frame properly:
 compileFuncPrelude = (f) ->
-    {:pstackTop, :defaultValue} = f.ljContext.globals[0]
+    {:pstackTop} = f.ljContext.globals[0]
 
     -- The stack has a special guarantee 'everything outside is zero initialized'.
     -- We thus hack GGGGC to allow for zero pointers and achieve convenience.
@@ -213,6 +213,17 @@ compileNumCheck = (f, val) ->
 --------------------------------------------------------------------------------
 --  Expression compilation:
 --------------------------------------------------------------------------------
+stringPtrs = {} -- Cache of string constants. TODO find time to free this.
+-- Creates a managed pointer to a string constant:
+getStringPtr = (str) -> 
+    if stringPtrs[str] 
+        return stringPtrs[str]
+    lStr = librun.langNewString(str, #str)
+    ptr = librun.langCreatePointer()
+    ptr[0] = lStr
+    stringPtrs[str] = ptr
+    return ptr
+
 ast.installOperation {
     methodName: "compileVal"
     recurseName: "_compileValRecurse"
@@ -222,10 +233,8 @@ ast.installOperation {
     IntLit: (f) =>
         return taggedIntVal(f, tonumber @value)
     StringLit: (f) =>
-        if not stringPtrs[@value]
-            stringPtrs[@value] = librun.langNewString(@value, #@value)
-        ptr, jitVal = f\createPtr(stringPtrs[@.value])
-        return f\loadRelative(jitVal, 0, lj.ulong)
+        ptr = getStringPtr(@value)
+        return f\loadRelative(longConst(f, ptr), 0, lj.ulong)
     Operator: (f) =>
         @_compileRecurse(f)
         op = switch @op
@@ -245,6 +254,7 @@ ast.installOperation {
         fVal = loadE(f, @func)
         logV "Calling #{f}"
         callSpace = longConst(f, 8*(@args[#@args].dest.index + 1))
+        --print "Leaving callspace of ", 8*(@args[#@args].dest.index + 1)
         f\storeRelative(f.stackTopPtr, 0, f\add(f.stackFrameVal, callSpace))
         f\callIndirect(fVal, {intConst(f, #@args)}, lj.uint, {lj.uint})
         f\storeRelative(f.stackTopPtr, 0, f.stackTopVal)
@@ -324,15 +334,12 @@ M.FunctionBuilder = newtype {
     ------------------------------------------------------------------------------
     createPtrRaw: (ptr) =>
         return @createLongConstant(lj.ptr, ffi.cast("unsigned long", ptr))
-    -- Creates a managed pointer:
-    createPtr: (val) =>
-        logV "createPtr", val
-        ptr = librun.langCreatePointer()
-        ptr[0] = val
-        append @constantPtrs, ptr
-        return ptr, @createPtrRaw(ptr)
     toCFunction: () =>
         return ffi.cast("LangFunc", lj.Function.toCFunction(@))
+    smartDump: () =>
+        {:pstackTop} = @ljContext.globals[0]
+        f = ffi.cast("unsigned long", pstackTop)
+        print @dump()
 }
 
 return M
