@@ -141,10 +141,14 @@ ast.installOperation {
         @symbol = sym
     -- Statements:
     Assign: (f) =>
+        for i=1,#@vars
+            if @op ~= '='
+                @values[i] = ast.Operator(@vars[i]\toExpr(), @op, @values[i])
         @_symbolRecurse(f)
         for i=1,#@vars
             var, val = @vars[i], @values[i]
             var.symbol\link(val)
+        @op = '=' -- For good measure, since operation was handled.
 }
 --------------------------------------------------------------------------------
 -- Second pass of compilation:
@@ -218,7 +222,7 @@ stringPtrs = {} -- Cache of string constants. TODO find time to free this.
 getStringPtr = (str) -> 
     if stringPtrs[str] 
         return stringPtrs[str]
-    lStr = librun.langNewString(str, #str)
+    lStr = librun.langStringCopy(str, #str)
     ptr = librun.langCreatePointer()
     ptr[0] = lStr
     stringPtrs[str] = ptr
@@ -237,15 +241,18 @@ ast.installOperation {
         return f\loadRelative(longConst(f, ptr), 0, lj.ulong)
     Operator: (f) =>
         @_compileRecurse(f)
+        val1 = loadE(f, @left)
+        val2 = loadE(f, @right)
+        if @op == '..'
+            func = runtime.stringConcat
+            return f\call(func, 'stringConcat', {val1, val2})
         op = switch @op
             when '-' then f.sub
             when '+' then f.add
             when '*' then f.mul
             when '/' then f.div
             when '%' then f.rem
-        val1 = loadE(f, @left)
         compileNumCheck(val1)
-        val2 = loadE(f, @right)
         compileNumCheck(val2)
         ret = op(f, unboxInt(f, val1), unboxInt(f, val2))
         return boxInt(f, ret)
@@ -253,11 +260,15 @@ ast.installOperation {
         @_compileRecurse(f)
         fVal = loadE(f, @func)
         logV "Calling #{f}"
-        callSpace = longConst(f, 8*(@args[#@args].dest.index + 1))
-        --print "Leaving callspace of ", 8*(@args[#@args].dest.index + 1)
-        f\storeRelative(f.stackTopPtr, 0, f\add(f.stackFrameVal, callSpace))
-        f\callIndirect(fVal, {intConst(f, #@args)}, lj.uint, {lj.uint})
-        f\storeRelative(f.stackTopPtr, 0, f.stackTopVal)
+        stackLoc = @args[#@args].dest.index
+        callSpace = longConst(f, VAL_SIZE * (stackLoc+1))
+        skipFiddle = (stackLoc + 1 == f.stackPtrsUsed)
+        if not skipFiddle
+            f\storeRelative(f.stackTopPtr, 0, f\add(f.stackFrameVal, callSpace))
+        val = f\callIndirect(fVal, {intConst(f, #@args)}, lj.uint, {lj.uint})
+        if not skipFiddle
+            f\storeRelative(f.stackTopPtr, 0, f.stackTopVal)
+        return val 
 }
    
 ast.installOperation {
@@ -353,21 +364,48 @@ M.FunctionBuilder = newtype {
                 nameCache[digits] ..= math.floor(cntr/#names)
             cntr += 1
             return nameCache[digits]
+        for i=#d,1,-1
+            if d[i]\find('outgoing') or d[i]\find('return_reg') or d[i]\find('ends')
+                for j=i+1, #d
+                    d[j-1] = d[j]
+                d[#d] = nil
+
+        cnt = 1
         for i=1,#d
+            replace = (s, m) ->
+                d[i] = d[i]\gsub s, m
+            replaceConstant = (name, func) ->
+                f = ffi.cast("unsigned long", func)
+                str1 = tostring(f) 
+                str1 = str1\sub(1, #str1-3)
+                str2 = ("0x%x")\format(tonumber f)
+                replace(str1, col.GREEN("$#{name}",col.BOLD))
+                replace(str2, col.GREEN("$#{name}",col.BOLD))
+            for k, v in pairs runtime
+                if getmetatable(v) == lj.NativeFunction 
+                    replaceConstant(k, v.func)
             for k, v in pairs @scope.parentScope.variables
-                f = ffi.cast("unsigned long", v.value.func)
-                str = tostring(f) 
-                str = str\sub(1, #str-3)
-                d[i] = d[i]\gsub(str, col.GREEN("$#{v.name}",col.BOLD))
-            d[i] = d[i]\gsub(stackStr, col.YELLOW('$stack',col.BOLD))
-            d[i] = d[i]\gsub 'load_relative_long%((.*), (.*)%)', (a,b) ->
+                replaceConstant(v.name, v.value.func)
+            replace '.L:%s*', () ->
+                s = col.WHITE("--- Section #{cnt} ---", col.FAINT)
+                cnt += 1
+                return s
+            replace(stackStr, col.YELLOW('$stack',col.BOLD))
+            replace 'load_relative_long%((.*), (.*)%)', (a,b) ->
                 return "#{a}[#{b}]" 
-            d[i] = d[i]\gsub 'store_relative_long%((.*), (.*), (.*)%)', (a,b,c) ->
+            replace 'call.*%((.*)%)', (a) -> "call #{a}"
+            replace 'store_relative_long%((.*), (.*), (.*)%)', (a,b,c) ->
                 c = tonumber(c)/8
                 return "#{a}[#{c}] = #{b}" 
-            d[i] = d[i]\gsub 'l(%d+)', (digits) ->
+            replace 'l(%d+)', (digits) ->
                 color = col.pickCol(tonumber digits)
                 return color(nameBetter digits)
+            replace '(%d+)%[0%]', (digits) ->
+                asLong = ffi.cast("unsigned long", tonumber digits)
+                asPtr = ffi.cast("LangString**", asLong)[0]
+                arr = asPtr[0].array[0]
+                newStr = ffi.string(arr.a__data, arr.length - 1)
+                return col.MAGENTA("\"#{newStr}\"", col.BOLD)
 
         print table.concat(d,'\n')
 }

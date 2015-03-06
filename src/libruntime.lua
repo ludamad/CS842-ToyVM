@@ -14,11 +14,19 @@ ffi.cdef [[
         void* emptyShape;
         void* defaultValue;
     };
+    typedef struct {
+        struct GGGGC_Header header;
+        unsigned int __cachedHash;
+        GGC_char_Array array;
+    } LangString;
 
     void** langCreatePointer();
-    void langStringPrint(void* str);
+    void langStringPrint(LangString* str);
     void langGlobalsInit(struct LangGlobals* globals, int pstackSize);
-    void* langNewString(const char *value, size_t len);
+    LangString* langStringNew(size_t len);
+    LangString* langStringCopy(const char *value, size_t len);
+    void langStringPrint(LangString* str);
+    LangString* langStringConcat(LangString* str1, LangString* str2);
 ]]
 
 return gc

@@ -11,7 +11,6 @@
 #include "runtime.h"
 #include <sys/mman.h>
 
-
 uint64_t RUNTIME_print(value_t* args, int n) {
     int i;
     for (i = 0; i < n; i++) {
@@ -83,7 +82,8 @@ struct LangGlobals {
 
 void* langDefaultValue;
 
-void* langNewString(const char* value, size_t len);
+LangString langStringCopy(const char* value, size_t len);
+LangString langStringConcat(LangString str1, LangString str2);
 
 void langGlobalsInit(struct LangGlobals* globals, int pstackSize) {
     LangShapeMap esm = NULL;
@@ -108,7 +108,7 @@ void langGlobalsInit(struct LangGlobals* globals, int pstackSize) {
     GGC_WP(emptyShape, children, esm);
     GGC_WP(emptyShape, members, eim);
     globals->emptyShape = emptyShape;
-    globals->defaultValue = langNewString("", 0);
+    globals->defaultValue = langStringCopy("", 0);
     langDefaultValue = globals->defaultValue;
 
     printf("POP & push\n");
@@ -120,21 +120,43 @@ void langGlobalsInit(struct LangGlobals* globals, int pstackSize) {
 }
 
 /* simple boxer for strings */
-void* langNewString(const char* value, size_t len) {
-    printf("langNewString : '%s'\n", value);
+LangString langStringNew(size_t len) {
     LangString ret = NULL;
     GGC_char_Array arr = NULL;
 
     GGC_PUSH_2(ret, arr);
 
     arr = GGC_NEW_DA(char, len+1);
-    strncpy(arr->a__data, value, len+1);
 
     ret = GGC_NEW(LangString);
     GGC_WP(ret, value, arr);
 
     GGC_POP();
-    return (void*)ret;
+    return ret;
+}
+
+LangString langStringCopy(const char* value, size_t len) {
+    LangString ret = langStringNew(len);
+    GGC_char_Array arr = GGC_RP(ret, value);
+    strncpy(arr->a__data, value, len+1);
+    return ret;
+}
+
+LangString langStringConcat(LangString str1, LangString str2) {
+    GGC_char_Array arr1 = NULL, arr2 = NULL, arr3 = NULL;
+    int newLen;
+    LangString result;
+    GGC_PUSH_6(str1, str2, result, arr1, arr2, arr3);
+
+    arr1 = GGC_RP(str1, value);
+    arr2 = GGC_RP(str2, value);
+    newLen = arr1->length + arr2 ->length - 2;
+    result = langStringNew(newLen);
+    arr3 = GGC_RP(result, value);
+    strncpy(arr3->a__data, arr1->a__data, arr1->length - 1);
+    strncpy(arr3->a__data + arr1->length - 1, arr2->a__data, arr2->length - 1);
+    GGC_POP();
+    return result;
 }
 
 /* map functions */
@@ -171,9 +193,7 @@ size_t langGetObjectMemberIndex(void **pstack, LangObject object,
 	/* first, check if it is a known cached shape and member for which we remember the index */
 	if (cache
 			!= NULL&& shape == GGC_RP(*cache, cachedShape) && member == GGC_RP(*cache, cachedMember)) {
-		printf("Got cache for ");
 		langStringPrint(member);
-		printf(" at %d \n", GGC_RP(*cache, cachedMember));
 		return GGC_RD(*cache, cachedIndex);
 	}
 
@@ -229,9 +249,7 @@ size_t langGetObjectMemberIndex(void **pstack, LangObject object,
 		GGC_WP(*cache, cachedShape, shape);
 		GGC_WP(*cache, cachedMember, member);
 		GGC_WD(*cache, cachedIndex, ret);
-		printf("Set cache for ");
 		langStringPrint(member);
-		printf(" at %X \n", GGC_RP(*cache, cachedMember));
 	}
 	return ret;
 }

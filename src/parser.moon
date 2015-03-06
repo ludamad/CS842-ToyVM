@@ -72,19 +72,20 @@ Float = _Float / ast.FloatLit
 Int = _Int / ast.IntLit
 Num = Space * (Int+Float)
 
+symC = (chars) -> Space * Capture(MatchExact chars)
+sym = (chars) -> Space * (MatchExact chars)
 -- In increase precendence:
 LogicOp = Space * Capture(MatchAnyOf "<>")
 Op1 = Space * Capture(MatchAnyOf "%+%-")
-Op2 = Space * Capture(MatchAnyOf "%*%/%%")
-Op3 = Space * Capture(MatchAnyOf "%^")
+Op2 = symC("..") + symC("and") + symC("or")
+Op3 = Space * Capture(MatchAnyOf "%*%/%%")
+Op4 = Space * Capture(MatchAnyOf "%^")
 
 Shebang = MatchExact("#!") * (ZeroOrMore Complement Stop)
 
 -- can't have P(false) because it causes preceding patterns not to run
 Cut = ToPattern ()->false
 
-sym = (chars) -> Space * (MatchExact chars)
-symC = (chars) -> Space * Capture(MatchExact chars)
 
 StartBrace = sym("{") 
 EndBrace = sym("}")
@@ -171,7 +172,7 @@ grammar = MatchGrammar extend indentG, {
     InBlock: gref.Advance * gref.Block * gref.PopIndent
     Body: OneOrMore(lineEnding) * gref.InBlock -- an indented block
     While: sym("while") * gref.Expr * gref.Body / ast.While
-    Assign: (symC("=") + symC("-=") + symC("+=")) * gref.ExprList
+    Assign: (gref._Oper*MatchExact("=")  + symC("=")) * gref.ExprList
     AssignStmnt: gref.RefStoreList * gref.Assign / ast.Assign
     Declare: _Name * gref.RefStoreList * (OneOrLess gref.Assign) / ast.Declare
     RefStoreList: CaptureTable(Name/ast.RefStore * (ZeroOrMore sym(",")*(Name/ast.RefStore)))
@@ -180,11 +181,13 @@ grammar = MatchGrammar extend indentG, {
     ExprList: CaptureTable(gref.Expr * (ZeroOrMore sym(",")*gref.Expr))
     KeyValPair: Name * KeyValSep * gref.Expr / (key, value) -> {:key, :value}
     Object: StartBrace * CaptureTable OneOrLess(gref.KeyValPair * (ZeroOrMore sym(",") *gref.KeyValPair)) * EndBrace
+    _Oper: Union {LogicOp, Op1, Op2, Op3, Op4}
     Operator: Union {
         opWrap LogicOp
         opWrap Op1
         opWrap Op2
         opWrap Op3
+        opWrap Op4
     }
     _Expr: Union {
         Name/ast.RefLoad

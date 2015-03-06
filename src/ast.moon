@@ -138,6 +138,8 @@ A.RefStore = AssignableT {
     String.name
     init: () =>
         @symbol = false
+    toExpr: () =>
+        return A.RefLoad @name
     __tostring: () =>
         if @symbol
             return tostring(@symbol)
