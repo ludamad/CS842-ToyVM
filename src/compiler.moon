@@ -20,7 +20,7 @@ TYPE_TAG_INT = 1
 -- Utility methods:
 
 longConst = (f, v) ->
-    return f\createLongConstant(lj.ulong, ffi.cast("uint64_t", v))
+    return f\createLongConstant(lj.ulong, ffi.cast("int64_t",v))
 intConst = (f, v) ->
     return f\createNintConstant(lj.uint, ffi.cast("unsigned int", v))
 -- Make a constant in our tagged format:
@@ -72,7 +72,9 @@ M.Variable = newtype {
         -- Resolve variables immediately.
         -- We will reclaim their stack space if their scope is popped.
         @resolve(f)
-    link: (stackRef) =>
+    link: (astNode) =>
+        astNode.dest or= StackRef()
+        stackRef = astNode.dest
         assert(stackRef.index == false)
         stackRef.index = @index
     __tostring: () => col.WHITE("$#{@name}", col.FAINT) .. StackRef.__tostring(@)
@@ -82,7 +84,10 @@ M.Constant = newtype {
     init: (@name, @value) =>
     store: (f) =>
         error "Cannot store to constant '#{@name or @value}'!"
-    load: (f) => @value
+    load: (f) => 
+        if getmetatable(@value) == lj.NativeFunction
+            return longConst(f, @value.func)
+        return @value
     __tostring: () => col.GREEN("$#{@name}", col.FAINT)
 }
 --------------------------------------------------------------------------------
@@ -115,6 +120,12 @@ ast.installOperation {
     Operator: (f) =>
         @_symbolRecurse(f)
         @dest = StackRef()
+    FuncCall: (f) =>
+        @func\symbolResolve(f)
+        for arg in *@args
+            arg\symbolResolve(f)
+            -- Ensure that each is allocated to a subsequent index:
+            arg.dest or= StackRef()
     -- Assignables:
     RefStore: (f) =>
         sym = f.scope\get(@name)
@@ -133,9 +144,7 @@ ast.installOperation {
         @_symbolRecurse(f)
         for i=1,#@vars
             var, val = @vars[i], @values[i]
-            if not val.dest
-                val.dest = StackRef()
-            var.symbol\link(val.dest)
+            var.symbol\link(val)
 }
 --------------------------------------------------------------------------------
 -- Second pass of compilation:
@@ -184,7 +193,8 @@ compileFuncPrelude = (f) ->
 
     -- How much total varSpace we want:
     varSpace = longConst(f, f.stackPtrsUsed * VAL_SIZE)
-    f\storeRelative(f.stackTopPtr, 0, f\add(f.stackFrameVal, varSpace))
+    f.stackTopVal = f\add(f.stackFrameVal, varSpace)
+    f\storeRelative(f.stackTopPtr, 0, f.stackTopVal)
 
 -- Compiles the necessary cleanup for returning:
 compileFuncReturn = (f, values) ->
@@ -230,11 +240,14 @@ ast.installOperation {
         compileNumCheck(val2)
         ret = op(f, unboxInt(f, val1), unboxInt(f, val2))
         return boxInt(f, ret)
-    FuncCall: (@) =>
-        {func, args} = @value
-        value = @compileNode(func)
-        logV "Calling"
-        @call(value, "", @frame [@compileNode arg for arg in *args])
+    FuncCall: (f) =>
+        @_compileRecurse(f)
+        fVal = loadE(f, @func)
+        logV "Calling #{f}"
+        callSpace = longConst(f, 8*(@args[#@args].dest.index + 1))
+        f\storeRelative(f.stackTopPtr, 0, f\add(f.stackFrameVal, callSpace))
+        f\callIndirect(fVal, {intConst(f, #@args)}, lj.uint, {lj.uint})
+        f\storeRelative(f.stackTopPtr, 0, f.stackTopVal)
 }
    
 ast.installOperation {
@@ -273,7 +286,6 @@ M.FunctionBuilder = newtype {
         lj.Function.init(@, @ljContext, lj.uint, {lj.uint})
         initContext(@ljContext)
         level = @getMaxOptimizationLevel()
-        print 'level' , level
         @setOptimizationLevel(level)
         @scope = M.Scope(globalScope)
         @stackSymInit(@, paramNames)
@@ -310,17 +322,6 @@ M.FunctionBuilder = newtype {
     ------------------------------------------------------------------------------
     -- LibJIT emission:
     ------------------------------------------------------------------------------
-    emitPrelude: () =>
-        {:pstackTop, :pstack} = @ljContext.globals[0]
-        argsV = @getParam(0)
-        for i=1,#@params
-            {:var} = @params[i]
-            var.value = @loadRelative(argsV, VAL_SIZE*(i-1), lj.ulong)
-            @scope\declareIfNotPresent(var)
-        -- Reference the bottom of our stack frame, where arguments are held:
-        val = @createLongConstant(lj.ptr, pstackTop)
-        @pstackBot = @sub(@loadRelative(@pstackTopPtr, 0, lj.ptr), @getParam(0))
-    -- Wraps a pointer value directly:
     createPtrRaw: (ptr) =>
         return @createLongConstant(lj.ptr, ffi.cast("unsigned long", ptr))
     -- Creates a managed pointer:
@@ -330,11 +331,6 @@ M.FunctionBuilder = newtype {
         ptr[0] = val
         append @constantPtrs, ptr
         return ptr, @createPtrRaw(ptr)
-    frame: (args) =>
-        ptr = @alloca(@createLongConstant(lj.ulong, #args * VAL_SIZE))
-        for i=1,#args
-            @storeRelative(ptr, VAL_SIZE*(i-1), args[i]) 
-        return {ptr, @createLongConstant(lj.ulong, #args)} 
     toCFunction: () =>
         return ffi.cast("LangFunc", lj.Function.toCFunction(@))
 }

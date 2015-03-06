@@ -52,6 +52,15 @@ function M.Function:init(context, returnT, paramsT)
     self.func = libjit.jit_function_create(context.context, self.signature)
 end
 
+-- Calls a C function from a dynamic value:
+function M.Function:callIndirect(func, args, returnT, paramsT) 
+    local cparams = table2ffi(args, "jit_value_t[?]")
+    local cparamTs = table2ffi(paramsT, "jit_type_t[?]")
+    local signature = libjit.jit_type_create_signature(C.jit_abi_cdecl, returnT, cparamTs, #paramsT, 1)
+    local result = libjit.jit_insn_call_indirect(self.func, func, signature, cparams, #args, 0)
+    libjit.jit_type_free(signature)
+    return result
+end
 -- Call a native, or JIT, function:
 function M.Function:call(func, name, args) 
     local cparams = table2ffi(args, "jit_value_t[?]")
@@ -322,7 +331,6 @@ for i, cfuncName in ipairs {
     "jit_insn_push",
     "jit_insn_load",
     "jit_insn_sqrt",
-    "jit_insn_call_indirect",
     "jit_insn_defer_pop_stack",
     "jit_insn_incoming_frame_posn",
     "jit_insn_import",

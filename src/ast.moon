@@ -6,8 +6,6 @@ Cggggc = require "compiler_ggggc"
 
 lj = require "libjit"
 
-import Variable, Param from require "compiler_syms"
-
 import Any, List, checkedType, checkerType, defaultInit, String from require "typecheck"
 
 M = {} -- Module

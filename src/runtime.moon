@@ -10,33 +10,34 @@ ffi.cdef [[
     typedef unsigned int (*LangFunc)(unsigned int n);
 ]]
 
--- Runtime functions.
--- LuaJIT 'converts' these to C pointers callable by libjit, what a dear ...
-funcs = {
-    print: (n) ->
-        -- TODO read args from stack
-       for i=0,tonumber(n)-1
-          if i >= 1 
-              io.write '\t'
-          if args[i].tag == 1
-              -- Assumg integer!
-              io.write(args[i].val)
-          else -- Assume string!
-              asString = ffi.cast("void**", args + i)[0]
-              librun.langStringPrint(asString)
-       io.write('\n')
-       return ffi.new("uint64_t", 0)
-}
-
--- Wrap as runtime funcs:
-for k,v in pairs(funcs)
-    funcs[k] = lj.NativeFunction(ffi.cast("LangFunc", v), lj.ulong, {lj.ptr, lj.uint})
-    --funcs[k] = lj.NativeFunction(librun.RUNTIME_print, lj.ulong, {lj.ptr, lj.uint})
-
 local C 
-makeGlobalScope = () ->
-    C or= require "newcompiler"
+makeGlobalScope = (ljContext) ->
+    C or= require "compiler"
     scope = C.Scope()
+
+    -- Runtime functions.
+    -- LuaJIT 'converts' these to C pointers callable by libjit, what a dear ...
+    funcs = {
+        print: (n) ->
+           {:pstackTop} = ljContext.globals[0]
+           args = ffi.cast("LangValue*",pstackTop[0]) - n
+           for i=0,tonumber(n)-1
+              if i >= 1 
+                  io.write '\t'
+              if args[i].tag == 1
+                  -- Assumg integer!
+                  io.write(args[i].val)
+              else -- Assume string!
+                  asString = ffi.cast("void**", args + i)[0]
+                  librun.langStringPrint(asString)
+           io.write('\n')
+           return ffi.new("uint64_t", 0)
+    }
+
+    -- Wrap as runtime funcs:
+    for k,v in pairs(funcs)
+        funcs[k] = lj.NativeFunction(ffi.cast("LangFunc", v), lj.ulong, {lj.ptr, lj.uint})
+
     for k,v in pairs(funcs)
         scope\declare(C.Constant(k, v))
     return scope

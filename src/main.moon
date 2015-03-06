@@ -14,9 +14,7 @@ require "util"
 lj = require "libjit"
 ffi = require "ffi"
 C = require "compiler"
-NC = require "newcompiler"
 
-import Param from require "compiler_syms"
 import parse, astToString from require "parser"
 --------------------------------------------------------------------------------
 -- Runtime initialization
@@ -30,7 +28,7 @@ log "Compiling function: "
 
 compile = (str) ->
     ast = parse(str)
-    fb = NC.FunctionBuilder(ljContext, {}, globalScope)
+    fb = C.FunctionBuilder(ljContext, {}, globalScope)
     print 'FRESH'
     print ast
     ast\symbolResolve(fb)
@@ -40,17 +38,17 @@ compile = (str) ->
     print 'STACK ALLOC\'ED'
     print ast
     ast\compile(fb)
-    
     -----
     print 'IR Compiled--------------------------------------------------------------------------------'
     fb\dump()
-    print 'ASM Compiled--------------------------------------------------------------------------------'
+    --print 'ASM Compiled--------------------------------------------------------------------------------'
     fb\compile()
-    fb\dump()
+    --fb\dump()
+    f = fb\toCFunction()
+    print "CALLINGFUNC:", f(0)
 
 program = "
 a = 1
-b = a / 2
 "
 compile(program, true)
 
