@@ -1,5 +1,5 @@
 
-luajit src/loader.lua
+luajit src/loader.lua $@
 exit
 gdb --directory=src/C/libjit/jit/ \
     --directory=src/C/ggggc/ \

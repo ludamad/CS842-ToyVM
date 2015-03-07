@@ -128,7 +128,6 @@ _cbAdvanceIndent = (str, pos, indent) ->
     top = _topIndent()
     if indent > top
        _pushIndent(indent)
-       pretty indentStack
        return true
 
 _cbPushIndent = (str, pos, indent) ->
@@ -172,27 +171,33 @@ grammar = MatchGrammar extend indentG, {
     Line: gref.CheckIndent * gref.Statement * ZeroOrMore(lineEnding) --+ NonBreakSpace*OneOrMore(Break)
     Block: CaptureTable(gref.Line * ZeroOrMore(gref.Line))
     Statement: Union {
-        gref.FuncCall
+        gref.FuncCall    / (@isExpression=false)=>@
         gref.Loop
         gref.If
         gref.AssignStmnt
         gref.Declare
+        gref.FuncCallS   / (@isExpression=false)=>@
     }
     InBlock: gref.Advance * gref.Block * gref.PopIndent
     Body: OneOrMore(lineEnding) * gref.InBlock / ast.Block -- an indented block
     Loop: Union {
         sym('while') * gref.Expr*gref.Body/ast.While
-        sym("for") * gref.RefStoreList * sym("in") * gref.ExprList * gref.Body / ast.ForObj
-        sym("for") * (Name/ast.RefStore) * sym("=") * gref.ExprList * gref.Body / ast.ForNum
+        sym("for") * gref.AssignableList * sym("in") * gref.ExprList * gref.Body / ast.ForObj
+        sym("for") * gref.Assignable * sym("=") * gref.ExprList * gref.Body / ast.ForNum
     }
     If: sym("if") * gref.Expr * gref.Body / ast.If
     Assign: (gref._ValOper*MatchExact("=")  + symC("=")) * gref.ExprList
-    AssignStmnt: gref.RefStoreList * gref.Assign / ast.Assign
-    Declare: _Name * gref.RefStoreList * (OneOrLess gref.Assign) / ast.Declare
-    RefStoreList: CaptureTable(Name/ast.RefStore * (ZeroOrMore sym(",")*(Name/ast.RefStore)))
+    AssignStmnt: gref.AssignableList * gref.Assign / ast.Assign
+    Declare: _Name * gref.AssignableList * (OneOrLess gref.Assign) / ast.Declare
+
+    Assignable: Union {
+        Name/ast.RefStore
+    }
+    AssignableList: CaptureTable(gref.Assignable * (ZeroOrMore sym(",")*gref.Assignable))
 
     -- Expressions:
     ExprList: CaptureTable OneOrLess(gref.Expr * ZeroOrMore(sym(",")*gref.Expr))
+    ExprListS: CaptureTable(gref.Expr * ZeroOrMore(sym(",")*gref.Expr))
     KeyValPair: Name * KeyValSep * gref.Expr / (key, value) -> {:key, :value}
     Object: StartBrace * CaptureTable OneOrLess(gref.KeyValPair * (ZeroOrMore sym(",") *gref.KeyValPair)) * EndBrace
     FuncParams: CaptureTable(OneOrLess(Name * ZeroOrMore(sym(",")*Name)))
@@ -214,6 +219,8 @@ grammar = MatchGrammar extend indentG, {
         Num
         SingleQuotedString
         DoubleQuotedString
+        sym("&") * gref.Assignable / ast.BoxGet
+        sym("*") * gref.Assignable / ast.BoxUnbox
         gref.Object/ast.Object
     }
     Expr: Union {
@@ -224,6 +231,8 @@ grammar = MatchGrammar extend indentG, {
     }
     -- Note, FuncCall is both an expression and a statement
     FuncCall: gref._Expr * sym("(") * gref.ExprList * sym(")") /ast.FuncCall
+    -- This form only allowed as a statement:
+    FuncCallS: gref._Expr * gref.ExprListS /ast.FuncCall
 }
 
 parse = (codeString) -> 

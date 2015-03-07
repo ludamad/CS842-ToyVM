@@ -10,6 +10,13 @@ M.checkerType = (methods) ->
     methods.typeof or=  () => "type(#{@name})"
     methods.assert or= (cond) => 
         return "assert(#{cond},[[#{@name} failed: #{cond}]])"
+    methods.__call or= (@defaultValue) => 
+        return @
+    methods.default = () =>
+        if @defaultValue ~= M.NO_DEFAULT
+            return @defaultValue
+        return nil
+
     T = newtype(methods)
     return setmetatable {type: T}, {
         __index: (k) =>
@@ -17,11 +24,13 @@ M.checkerType = (methods) ->
         __call: (...) => T(...)
     }
 
+M.NO_DEFAULT = {}
 M.defaultInit = () =>
     @_any = false
     @_metatype = false
     @_list = false
     @_prim = false
+    @defaultValue = M.NO_DEFAULT
 
 M.Any = M.checkerType {
     init: (@name) =>
@@ -64,6 +73,7 @@ M.PrimType = (str) -> M.checkerType {
 }
 
 M.String, M.Num, M.Table = M.PrimType('string'), M.PrimType('number'), M.PrimType('table')
+M.Bool = M.PrimType('boolean')
 
 __makeCacheLine = (...) ->
     commaList = table.concat {...}, ', '
@@ -83,8 +93,12 @@ M.makeInit = (T, fields) ->
         {:name} = fields[i]
         --if DEBUGGING
         --    append(code, "print('#{name} =', #{name})") 
-        fields[i]\emitCheck(code, ids[i])
-        append(code, "self.#{name} = #{name}") 
+        if fields[i]\default() ~= nil
+            defS = pretty_s fields[i]\default()
+            append(code, "self.#{name} = #{name} ~= nil and #{name} or #{defS}")
+        else
+            fields[i]\emitCheck(code, ids[i])
+            append(code, "self.#{name} = #{name}") 
     append code, "self:init()"
     append code, "return self\nend"
     codeString = table.concat(code, '\n')

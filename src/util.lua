@@ -164,7 +164,7 @@ function pretty_print(val, --[[Optional]] tabs, --[[Optional]] packed)
     print(pretty_tostring(val, tabs, packed))
 end
 
-local function pretty_s(val)
+function pretty_s(val)
     if type(val) == "string" then
         return val
     end

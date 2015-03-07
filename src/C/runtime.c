@@ -93,15 +93,12 @@ void langGlobalsInit(struct LangGlobals* globals, int pstackSize) {
 
     GGC_PUSH_4(esm, emptyShape, eim, defaultValue);
 
-    printf("Mmap\n");
     globals->pstack = (void**)mmap(NULL, pstackSize*sizeof(void*), PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-    printf("pstack\n");
     ggc_jitPointerStack = globals->pstack;
     ggc_jitPointerStackTop = globals->pstack;
     globals->pstackTop = &ggc_jitPointerStackTop;
 
     /* the empty shape */
-    printf("eshape\n");
     emptyShape = GGC_NEW(LangShape);
     esm = GGC_NEW(LangShapeMap);
     eim = GGC_NEW(LangIndexMap);
@@ -111,7 +108,6 @@ void langGlobalsInit(struct LangGlobals* globals, int pstackSize) {
     globals->defaultValue = langStringCopy("", 0);
     langDefaultValue = globals->defaultValue;
 
-    printf("POP & push\n");
     GGC_POP();
     {
     	GGC_PUSH_3(globals->emptyShape, globals->defaultValue, langDefaultValue);
@@ -187,7 +183,8 @@ size_t langGetObjectMemberIndex(void **pstack, LangObject object,
 
 	shape = GGC_RP(object, shape);
 
-	printf("Looking up ");
+	
+        printf("Looking up ");
 	langStringPrint(member);
 	printf("\n");
 	/* first, check if it is a known cached shape and member for which we remember the index */

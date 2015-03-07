@@ -143,7 +143,8 @@ ast.installOperation {
             arg\symbolResolve(f)
             -- Ensure that each is allocated to a subsequent index:
             arg.dest or= StackRef()
-        @dest or= StackRef() -- Our return value requires one, as well.
+        if @isExpression
+            @dest or= StackRef() -- Our return value requires one, as well.
     -- Assignables:
     RefStore: (f) =>
         sym = f.scope\get(@name)
@@ -264,16 +265,6 @@ getStringPtr = (str) ->
     stringPtrs[str] = ptr
     return ptr
 
-
-compileFunc = (ljContext, paramNames, ast, scope) ->
-    fb = M.FunctionBuilder(ljContext, paramNames, scope)
-    ast\symbolResolve(fb)
-    ast\stackResolve(fb)
-    ast\compile(fb)
-    fb\smartDump()
-    fb\compile()
-    return fb
-
 ast.installOperation {
     methodName: "compileVal"
     recurseName: "_compileValRecurse"
@@ -286,7 +277,7 @@ ast.installOperation {
         ptr = getStringPtr(@value)
         return f\loadRelative(longConst(f, ptr), 0, lj.ulong)
     Function: (f) =>
-        @compiledFunc = compileFunc f.ljContext, @paramNames, @body, f.scope
+        @compiledFunc = M.compileFunc f.ljContext, @paramNames, @body, f.scope
         return longConst(f, @compiledFunc\toCFunction())
     Operator: (f) =>
         @_compileRecurse(f)
@@ -295,7 +286,6 @@ ast.installOperation {
         if @op == '..'
             func = runtime.stringConcat
             return f\call(func, 'stringConcat', {val1, val2})
-        print "Compiling op: #{@left} #{@op} #{@right}"
         op, boxer = switch @op
             when '-' then f.sub, boxInt
             when '+' then f.add, boxInt
@@ -315,6 +305,7 @@ ast.installOperation {
         ret = op(f,i1, i2) 
         return boxer(f, ret)
 }
+
 
 ast.installOperation {
     methodName: "compile"
@@ -352,7 +343,8 @@ ast.installOperation {
         val = f\callIndirect(fVal, {intConst(f, #@args)}, lj.uint, {lj.uint})
         -- Must restore after return value changes in top pointer:
         f\storeRelative(f.stackTopPtr, 0, f.stackTopVal)
-        @compiledVal = @dest\load(f)
+        if @isExpression
+            @compiledVal = @dest\load(f)
     Expr: (f) =>
         @compiledVal = @compileVal(f)
         if @dest
@@ -361,6 +353,7 @@ ast.installOperation {
     Assign: (f) =>
         @_compileRecurse(f)
 }
+
 --------------------------------------------------------------------------------
 -- Function builder, thin interface to LibJIT's function_t type.
 -- Note: lj.Function to start has many members, some commonly named. We will be extending it a lot, we must
@@ -383,7 +376,6 @@ M.FunctionBuilder = newtype {
         @stackLoc = 0
         @stackPtrsUsed = @stackLoc
         for i=1,#@paramNames
-            print "WWW"
             var = M.Variable(@, @paramNames[i])
             @scope\declare(var)
     saveStackLoc: () =>
@@ -412,79 +404,92 @@ M.FunctionBuilder = newtype {
         return @createLongConstant(lj.ptr, ffi.cast("unsigned long", ptr))
     toCFunction: () =>
         return ffi.cast("LangFunc", lj.Function.toCFunction(@))
-    smartDump: () =>
-        {:pstackTop} = @ljContext.globals[0]
-        f = ffi.cast("unsigned long", pstackTop)
-        stackStr = tostring(f) 
-        stackStr = stackStr\sub(1, #stackStr-3)
-        d = @dump()\split('\n')
-        nameCache = {}
-        names = {"foo", "bar", "baz", "cindy", "alpha", "bravo", "wilfrid", "tusk", "sam", "valz", "sin", 'pindet', 'sukki', 'oPtr', 'ranDat'}
-        cntr = 0
-        nameBetter = (digits) ->
-            if nameCache[digits] 
-                return nameCache[digits]
-            nameCache[digits] = names[cntr%#names+1]
-            if cntr >= #names
-                nameCache[digits] ..= math.floor(cntr/#names)
-            cntr += 1
-            return nameCache[digits]
-       -- for i=#d,1,-1
-       --     if d[i]\find('outgoing') or d[i]\find('return_reg') or d[i]\find('ends')
-       --         for j=i+1, #d
-       --             d[j-1] = d[j]
-       --         d[#d] = nil
-
-        cnt = 1
-        for i=1,#d
-            replace = (s, m) ->
-                d[i] = d[i]\gsub s, m
-            replaceConstant = (name, func) ->
-                f = ffi.cast("unsigned long", func)
-                str1 = tostring(f) 
-                str1 = str1\sub(1, #str1-3)
-                str2 = ("0x%x")\format(tonumber f)
-                replace(str1, col.GREEN("$#{name}",col.BOLD))
-                replace(str2, col.GREEN("$#{name}",col.BOLD))
-            for k, v in pairs runtime
-                if getmetatable(v) == lj.NativeFunction 
-                    replaceConstant(k, v.func)
-            scope = @scope
-            while scope
-                for k, v in pairs scope.variables
-                    if rawget(v, 'value') and type(v.value) == 'table'
-                        replaceConstant(v.name, v.value.func)
-                scope = scope.parentScope
-            replace '.L:%s*', () ->
-                s = col.WHITE("--- Section #{cnt} ---", col.FAINT)
-                cnt += 1
-                return s
-            replace(stackStr, col.YELLOW('$stack',col.BOLD))
-            replace 'load_relative_long%((.*), (.*)%)', (a,b) ->
-                return "#{a}[#{b/8}]" 
-            replace 'call.*%((.*)%)', (a) -> "call #{a}"
-            replace 'store_relative_long%((.*), (.*), (.*)%)', (a,b,c) ->
-                c = tonumber(c)/8
-                return "#{a}[#{c}] = #{b}" 
-            replace 'l(%d+)', (digits) ->
-                color = col.pickCol(tonumber digits)
-                return color(nameBetter digits)
-            replace '(%d+)%[0%]', (digits) ->
-                asLong = ffi.cast("unsigned long", tonumber digits)
-                asPtr = ffi.cast("LangString**", asLong)[0]
-                arr = asPtr[0].array[0]
-                newStr = ffi.string(arr.a__data, arr.length - 1)
-                return col.MAGENTA("\"#{newStr}\"", col.BOLD)
-            replace '(%d+)', (digits) ->
-                if tonumber(digits) < 4294967296
-                    return digits
-                endChr = ffi.new('char*[1]')
-                num = ffi.C.strtoull(digits, endChr, 10)
-                numPtr = ffi.new('uint64_t[1]', num)
-                val = ffi.cast('LangValue*', numPtr)[0]
-                return col.GREEN("#{val.val}" , col.BOLD).. col.WHITE("!#{val.tag}", col.FAINT)
-
-        print table.concat(d,'\n')
 }
+
+M.compileFunc = (ljContext, paramNames, ast, scope) ->
+    fb = M.FunctionBuilder(ljContext, paramNames, scope)
+    ast\symbolResolve(fb)
+    ast\stackResolve(fb)
+    ast\compile(fb)
+    log fb\smartDump()
+    fb\compile()
+    return fb
+
+--------------------------------------------------------------------------------
+-- Colorful LibJIT IR dumper:
+--------------------------------------------------------------------------------
+M.FunctionBuilder.smartDump = () =>
+    {:pstackTop} = @ljContext.globals[0]
+    f = ffi.cast("unsigned long", pstackTop)
+    stackStr = tostring(f) 
+    stackStr = stackStr\sub(1, #stackStr-3)
+    d = @dump()\split('\n')
+    nameCache = {}
+    names = {"foo", "bar", "baz", "cindy", "alpha", "bravo", "wilfrid", "tusk", "sam", "valz", "sin", 'pindet', 'sukki', 'oPtr', 'ranDat'}
+    cntr = 0
+    nameBetter = (digits) ->
+        if nameCache[digits] 
+            return nameCache[digits]
+        nameCache[digits] = names[cntr%#names+1]
+        if cntr >= #names
+            nameCache[digits] ..= math.floor(cntr/#names)
+        cntr += 1
+        return nameCache[digits]
+   -- for i=#d,1,-1
+   --     if d[i]\find('outgoing') or d[i]\find('return_reg') or d[i]\find('ends')
+   --         for j=i+1, #d
+   --             d[j-1] = d[j]
+   --         d[#d] = nil
+
+    cnt = 1
+    for i=1,#d
+        replace = (s, m) ->
+            d[i] = d[i]\gsub s, m
+        replaceConstant = (name, func) ->
+            f = ffi.cast("unsigned long", func)
+            str1 = tostring(f) 
+            str1 = str1\sub(1, #str1-3)
+            str2 = ("0x%x")\format(tonumber f)
+            replace(str1, col.GREEN("$#{name}",col.BOLD))
+            replace(str2, col.GREEN("$#{name}",col.BOLD))
+        for k, v in pairs runtime
+            if getmetatable(v) == lj.NativeFunction 
+                replaceConstant(k, v.func)
+        scope = @scope
+        while scope
+            for k, v in pairs scope.variables
+                if rawget(v, 'value') and type(v.value) == 'table'
+                    replaceConstant(v.name, v.value.func)
+            scope = scope.parentScope
+        replace '.L:%s*', () ->
+            s = col.WHITE("--- Section #{cnt} ---", col.FAINT)
+            cnt += 1
+            return s
+        replace(stackStr, col.YELLOW('$stack',col.BOLD))
+        replace 'load_relative_long%((.*), (.*)%)', (a,b) ->
+            return "#{a}[#{b/8}]" 
+        replace 'call.*%((.*)%)', (a) -> "call #{a}"
+        replace 'store_relative_long%((.*), (.*), (.*)%)', (a,b,c) ->
+            c = tonumber(c)/8
+            return "#{a}[#{c}] = #{b}" 
+        replace 'l(%d+)', (digits) ->
+            color = col.pickCol(tonumber digits)
+            return color(nameBetter digits)
+        replace '(%d+)%[0%]', (digits) ->
+            asLong = ffi.cast("unsigned long", tonumber digits)
+            asPtr = ffi.cast("LangString**", asLong)[0]
+            arr = asPtr[0].array[0]
+            newStr = ffi.string(arr.a__data, arr.length - 1)
+            return col.MAGENTA("\"#{newStr}\"", col.BOLD)
+        replace '(%d+)', (digits) ->
+            if tonumber(digits) < 4294967296
+                return digits
+            endChr = ffi.new('char*[1]')
+            num = ffi.C.strtoull(digits, endChr, 10)
+            numPtr = ffi.new('uint64_t[1]', num)
+            val = ffi.cast('LangValue*', numPtr)[0]
+            return col.GREEN("#{val.val}" , col.BOLD).. col.WHITE("!#{val.tag}", col.FAINT)
+
+    return table.concat(d,'\n')
 
 return M

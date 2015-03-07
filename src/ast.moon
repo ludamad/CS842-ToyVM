@@ -6,9 +6,12 @@ Cggggc = require "compiler_ggggc"
 
 lj = require "libjit"
 
-import Any, List, checkedType, checkerType, defaultInit, String from require "typecheck"
+import Bool, String, Num, Any, List, checkedType, checkerType, defaultInit from require "typecheck"
 
 M = {} -- Module
+M.astTypes = {}
+A = M.astTypes
+
 --------------------------------------------------------------------------------
 -- Constructors for making checked AST Ts
 --------------------------------------------------------------------------------
@@ -29,7 +32,8 @@ NodeT = (t) ->
     t._assignable or= false
     t._statement or= false
     t._fields = [field for field in *t] 
-    t.init or= () =>
+    t.init or= () => 
+        @initialized = true
     local T
     t._indent = (d=0) =>
         indentStr = ''
@@ -45,7 +49,7 @@ NodeT = (t) ->
             val = @[t[i].name]
             if type(val) == "string" 
                 val = "'#{val}'"
-            elseif #val > 0
+            elseif type(val) == "table" and #val > 0
                 __INDENT +=1 
                 strs = ["#{indentStr}  - #{s}" for s in *val]
                 __INDENT -=1 
@@ -60,12 +64,17 @@ NodeT = (t) ->
     T.toString = () =>
         __INDENT = 1
         return tostring(@)
+
+    T.__newindex = (k,v) =>
+        if v == nil 
+            error "Cannot add '#{k}' nil member to #{toName T.create}!"
+        if rawget @, 'initialized'
+            error "Cannot add '#{k}' to initialized object! #{toName T.create}"
+        rawset(@, k, v)
     return T
 
 ExprT = (t) ->
     t._expr = true
-    t.init or= () =>
-        @dest = false
     return NodeT(t)
 
 AssignableT = (t) ->
@@ -122,17 +131,15 @@ Statement = checkerType {
 }
 
 --------------------------------------------------------------------------------
--- The AST types
+-- Top AST nodes for function definition:
 --------------------------------------------------------------------------------
-M.astTypes = {}
-A = M.astTypes
 
 A.Function = ExprT {
     List(String).paramNames
     Statement.body
-    init: () =>
-        @dest = false
-        @name = false
+    Any.dest false
+    Any.name false
+    Any.compiledVal false
     _d: () => if @dest then @dest else ''
     __tostring: () =>
         code = {'('..table.concat(@paramNames, ", ")..")#{@_d()} ->"}
@@ -151,10 +158,13 @@ A.FuncBody = StatementT {
         return f
 }
 
+--------------------------------------------------------------------------------
+-- Assignable (and addressable) expressions:
+--------------------------------------------------------------------------------
+
 A.RefStore = AssignableT {
     String.name
-    init: () =>
-        @symbol = false
+    Any.symbol false
     toExpr: () =>
         return A.RefLoad @name
     __tostring: () =>
@@ -162,11 +172,16 @@ A.RefStore = AssignableT {
             return tostring(@symbol)
         return "$#{@name}"
 }
+
+--------------------------------------------------------------------------------
+-- Value expressions:
+--------------------------------------------------------------------------------
+
 A.RefLoad = ExprT {
     String.name
-    init: () =>
-        @symbol = false
-        @dest = false
+    Any.symbol false
+    Any.dest false
+    Any.compiledVal false
     __tostring: () =>
         if @symbol
             return tostring(@symbol)
@@ -177,31 +192,64 @@ A.Operator = ExprT {
     Expr.left
     String.op
     Expr.right
+    Any.dest false
+    Any.compiledVal false
     __tostring: () =>
         return "(#{@left} #{@op} #{@right})"
 }
 
 A.FloatLit = ExprT {
     String.value
+    Any.dest false
+    Any.compiledVal false
     __tostring: () =>
         return @value
 }
 
 A.StringLit = ExprT {
     String.value
+    Any.dest false
+    Any.compiledVal false
     __tostring: () =>
         return "\"#{@value}\""
 }
 
 A.Object = ExprT {
     String.value
+    Any.dest false
+    Any.compiledVal false
 }
 
 A.IntLit = ExprT {
     String.value
+    Any.dest false
+    Any.compiledVal false
     __tostring: () =>
         return @value
 }
+
+-- Boxes are first class values used for mutability.
+-- Box handlers:
+
+A.BoxGet = ExprT {
+    Assignable.ref
+    Any.dest false
+    Any.compiledVal false
+    __tostring: () =>
+        return "&#{@ref}"
+}
+
+A.BoxUnbox = ExprT {
+    Expr.ptr
+    Any.dest false
+    Any.compiledVal false
+    __tostring: () =>
+        return "*#{@ptr}"
+}
+
+--------------------------------------------------------------------------------
+-- Control statements and variable assignments:
+--------------------------------------------------------------------------------
 
 A.Declare = StatementT {
     List(Assignable).vars
@@ -220,6 +268,14 @@ A.Block = StatementT {
 A.While = StatementT {
     Expr.condition
     Statement.block
+    Any.labelCheck false
+    Any.labelLoopStart false
+    __tostring: () =>
+        f = "\n#{@_indent()}while #{@condition}\n"
+        __INDENT += 1
+        f ..= table.concat(["#{@_indent()}#{v}" for v in *@block.body], '\n')
+        __INDENT -= 1
+        return f
 }
 
 A.If = StatementT {
@@ -251,10 +307,18 @@ A.Assign = StatementT {
         return "#{toCommas @vars} #{op} #{toCommas @values}"
 }
 
+--------------------------------------------------------------------------------
+-- Function calls, which can be both statements and values.
+--------------------------------------------------------------------------------
+
 A.FuncCall = PolyT {
     Expr.func
     List(Expr).args
-    test: () => print "WEEE"
+
+    Num.lastStackLoc -1
+    Bool.isExpression true
+    Any.dest false
+    Any.compiledVal false
     __tostring: () =>
         s = "#{@func}(#{toCommas @args})"
         if rawget(@, 'lastStackLoc')
