@@ -48,16 +48,21 @@ makeGlobalScope = (ljContext) ->
     -- LuaJIT 'converts' these to C pointers callable by libjit, what a dear ...
     funcs = {
         tostring: (n) ->
+            log 'tostring', n
             assert n == 1, "tostring takes 1 argument!"
             argPtr = getArgs(n)
             s = toStr(argPtr)
             return setRet(n, s, "LangString*")
         print: (n) ->
+           log "#{n} args to print"
+           args = getArgs(n)
            for i=0,tonumber(n)-1
-              args = getArgs(n)
+              log(args[i].tag, args[i].val)
               if i >= 1 
                   io.write '\t'
-              if args[i].tag == C.TYPE_TAG_INT
+              if args[i].tag == 0
+                  io.write 'nil'
+              elseif args[i].tag == C.TYPE_TAG_INT
                   io.write(args[i].val)
               elseif args[i].tag == C.TYPE_TAG_BOOL
                   if args[i].val ~= 0

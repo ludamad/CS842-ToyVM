@@ -190,6 +190,13 @@ ast.installOperation {
         -- Do nothing with the AST (belongs to different context)
         if @dest
             @dest\resolve(f)
+    FuncCall: (f) =>
+        @lastStackLoc = f.stackLoc
+        f\saveStackLoc()
+        @_stackRecurse(f)
+        f\loadStackLoc()
+        if @dest
+            @dest\resolve(f)
     Expr: (f) =>
         f\saveStackLoc()
         @_stackRecurse(f)
@@ -333,15 +340,14 @@ ast.installOperation {
         f\label(@labelCheck)
         isTrue = truthCheck(f, @condition\compileVal(f))
         f\branchIf(isTrue, @labelLoopStart)
-        print "after"
     Block: (f) =>
         @_compileRecurse(f)
     FuncCall: (f) =>
         @_compileRecurse(f)
         fVal = loadE(f, @func)
-        stackLoc = @args[#@args].dest.index
-        callSpace = longConst(f, VAL_SIZE * (stackLoc+1))
-        if (stackLoc + 1 ~= f.stackPtrsUsed)
+        -- @lastStackLoc is the next stack index after the current variables
+        callSpace = longConst(f, VAL_SIZE * (@lastStackLoc + #@args))
+        if (@lastStackLoc + #@args ~= f.stackPtrsUsed)
             f\storeRelative(f.stackTopPtr, 0, f\add(f.stackFrameVal, callSpace))
         val = f\callIndirect(fVal, {intConst(f, #@args)}, lj.uint, {lj.uint})
         -- Must restore after return value changes in top pointer:
@@ -367,7 +373,7 @@ M.FunctionBuilder = newtype {
         level = @getMaxOptimizationLevel()
         @setOptimizationLevel(level)
         @scope = M.Scope(globalScope)
-        @stackSymInit(@, paramNames)
+        @stackSymInit(paramNames)
         @constantPtrs = {}
     ------------------------------------------------------------------------------
     -- Stack and symbol resolving:
@@ -377,6 +383,7 @@ M.FunctionBuilder = newtype {
         @stackLoc = 0
         @stackPtrsUsed = @stackLoc
         for i=1,#@paramNames
+            print "WWW"
             var = M.Variable(@, @paramNames[i])
             @scope\declare(var)
     saveStackLoc: () =>
@@ -442,16 +449,19 @@ M.FunctionBuilder = newtype {
             for k, v in pairs runtime
                 if getmetatable(v) == lj.NativeFunction 
                     replaceConstant(k, v.func)
-            for k, v in pairs @scope.parentScope.variables
-                if rawget(v, 'value') and type(v.value) == 'table'
-                    replaceConstant(v.name, v.value.func)
+            scope = @scope
+            while scope
+                for k, v in pairs scope.variables
+                    if rawget(v, 'value') and type(v.value) == 'table'
+                        replaceConstant(v.name, v.value.func)
+                scope = scope.parentScope
             replace '.L:%s*', () ->
                 s = col.WHITE("--- Section #{cnt} ---", col.FAINT)
                 cnt += 1
                 return s
             replace(stackStr, col.YELLOW('$stack',col.BOLD))
             replace 'load_relative_long%((.*), (.*)%)', (a,b) ->
-                return "#{a}[#{b}]" 
+                return "#{a}[#{b/8}]" 
             replace 'call.*%((.*)%)', (a) -> "call #{a}"
             replace 'store_relative_long%((.*), (.*), (.*)%)', (a,b,c) ->
                 c = tonumber(c)/8

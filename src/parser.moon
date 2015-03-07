@@ -102,12 +102,12 @@ extend = (src, new) ->
         new[k] = v
     return new
 
-indentStack = {-1}
+indentStack = {0}
 last_pos = 0
 
 Indent = (Capture ZeroOrMore MatchAnyOf "\t ") / (str) ->
     -- Transform capture by counting the indent
-    sum = 0
+    sum = 1
     for v in str\gmatch "[\t ]"
         if v == ' ' then sum += 1
         if v == '\t' then sum += 4
@@ -128,6 +128,7 @@ _cbAdvanceIndent = (str, pos, indent) ->
     top = _topIndent()
     if indent > top
        _pushIndent(indent)
+       pretty indentStack
        return true
 
 _cbPushIndent = (str, pos, indent) ->
@@ -142,14 +143,21 @@ indentG = {
     CheckIndent: lpeg.Cmt(Indent, _cbCheckIndent), -- validates line is in correct indent
 }
 
-opWrap = (op) -> gref._Expr * op * gref.Expr / ast.Operator
+toOps = (...) ->
+    args = {...}
+    left = args[1]
+    for i=2,#args,2
+        left = ast.Operator(left, args[i], args[i+1])
+    return left
+
+opWrap = (op) -> gref._Expr * OneOrMore(op * gref.Expr) / toOps 
 
 -- Mock AST
 nast = setmetatable {}, {
         __index: (k) =>
             injectArr(k)
     }
-lineEnding = OneOrMore(NonBreakSpace * Break)
+lineEnding = NonBreakSpace * Break
 grammar = MatchGrammar extend indentG, {
     gref.SourceCode -- Initial Rule
     SourceCode: Union {
@@ -161,14 +169,14 @@ grammar = MatchGrammar extend indentG, {
     FuncBody: (gref.Body /  ast.FuncBody)
   
 --    Block: CaptureTable(ZeroOrMore(gref.Line))
-    Line: gref.CheckIndent * gref.Statement + NonBreakSpace*OneOrMore(Break)
-    Block: CaptureTable(gref.Line * ZeroOrMore(OneOrMore(Break) * gref.Line))
+    Line: gref.CheckIndent * gref.Statement * ZeroOrMore(lineEnding) --+ NonBreakSpace*OneOrMore(Break)
+    Block: CaptureTable(gref.Line * ZeroOrMore(gref.Line))
     Statement: Union {
+        gref.FuncCall
         gref.Loop
         gref.If
         gref.AssignStmnt
         gref.Declare
-        gref.FuncCall
     }
     InBlock: gref.Advance * gref.Block * gref.PopIndent
     Body: OneOrMore(lineEnding) * gref.InBlock / ast.Block -- an indented block
@@ -184,11 +192,10 @@ grammar = MatchGrammar extend indentG, {
     RefStoreList: CaptureTable(Name/ast.RefStore * (ZeroOrMore sym(",")*(Name/ast.RefStore)))
 
     -- Expressions:
-    ExprList: CaptureTable(gref.Expr * (ZeroOrMore sym(",")*gref.Expr))
+    ExprList: CaptureTable OneOrLess(gref.Expr * ZeroOrMore(sym(",")*gref.Expr))
     KeyValPair: Name * KeyValSep * gref.Expr / (key, value) -> {:key, :value}
     Object: StartBrace * CaptureTable OneOrLess(gref.KeyValPair * (ZeroOrMore sym(",") *gref.KeyValPair)) * EndBrace
     FuncParams: CaptureTable(OneOrLess(Name * ZeroOrMore(sym(",")*Name)))
-    --Function: gref.FuncParams * sym("->")  / ast.Function 
     FuncHead: Union {
         sym('(')* gref.FuncParams*sym(')') * sym("->")
         gref.FuncParams * sym("->") 
@@ -203,7 +210,6 @@ grammar = MatchGrammar extend indentG, {
         opWrap Op4
     }
     _Expr: Union {
-        gref.Function
         Name/ast.RefLoad
         Num
         SingleQuotedString
@@ -213,15 +219,14 @@ grammar = MatchGrammar extend indentG, {
     Expr: Union {
         gref.FuncCall
         gref.Operator
-        gref._Expr * symC('/') * gref._Expr
         gref._Expr
+        gref.Function
     }
     -- Note, FuncCall is both an expression and a statement
     FuncCall: gref._Expr * sym("(") * gref.ExprList * sym(")") /ast.FuncCall
 }
 
 parse = (codeString) -> 
-    indentLevel = 0
     lpeg.match(grammar, codeString)
 
 return {

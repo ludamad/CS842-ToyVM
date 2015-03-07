@@ -50,6 +50,7 @@ compile = (str) ->
     ast\stackResolve(fb)
     out '-- Stack Allocated Tree ----------------------------------------------------------------------'
     print ast
+    out '----------------------------------------------------------------------------------------------'
     ast\compile(fb)
     -----
     out '-- IR Compiled -------------------------------------------------------------------------------'
@@ -63,17 +64,47 @@ compile = (str) ->
 
 
 program = "
-s = () ->
-    print('hello from function')
-s()
+printWithSglQuotes = (v) ->
+    print(\"'\" .. tostring(v) .. \"'\")
+printWithDblQuotes = (v) ->
+    print('\"' .. tostring(v) .. '\"')
+printN = (n, printer) ->
+    i = 0
+    while i < n
+        printer(i)
+        i += 1
+printN(10, printWithSglQuotes)
+printN(10, printWithDblQuotes)
 "
 
 compile(program, true)
+do return
+program = "
+j = 2
+k = 3 
+i = 1
+i = i + 1
+i = i + i
+print(i, j + k)
+"
 
+compile(program, true)
+do return
+program = "
+print(2)
+s = () ->
+    print('hello from function')
+b = 2
+print()
+"
+
+compile(program, true)
 program2 = "
 i = 1
 while i < 10
     i += 1
     print(i)
+print('what')
 "
 
+compile(program2, true)

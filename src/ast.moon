@@ -256,7 +256,10 @@ A.FuncCall = PolyT {
     List(Expr).args
     test: () => print "WEEE"
     __tostring: () =>
-        return "#{@func}(#{toCommas @args})"
+        s = "#{@func}(#{toCommas @args})"
+        if rawget(@, 'lastStackLoc')
+            s ..= "#{@lastStackLoc}"
+        return s
 }
 
 _codegenRecursor = (criterion = '_node', T, methodName) ->
