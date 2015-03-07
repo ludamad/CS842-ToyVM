@@ -86,7 +86,6 @@ Shebang = MatchExact("#!") * (ZeroOrMore Complement Stop)
 -- can't have P(false) because it causes preceding patterns not to run
 Cut = ToPattern ()->false
 
-
 StartBrace = sym("{") 
 EndBrace = sym("}")
 KeyValSep = sym(":") 
@@ -103,7 +102,7 @@ extend = (src, new) ->
         new[k] = v
     return new
 
-indentStack = {0}
+indentStack = {-1}
 last_pos = 0
 
 Indent = (Capture ZeroOrMore MatchAnyOf "\t ") / (str) ->
@@ -155,10 +154,12 @@ grammar = MatchGrammar extend indentG, {
     gref.SourceCode -- Initial Rule
     SourceCode: Union {
         -- it could be a whole file
-        (OneOrLess Shebang) * ( (gref.Block + CaptureTable("")) /  ast.FuncBody) 
+        (OneOrLess Shebang) * gref.FuncBody
         -- or this could be a single expression, such as in a REPL...
         gref.Expr 
     }
+    FuncBody: ( (gref.Block + CaptureTable("")) /  ast.FuncBody) 
+  
     Block: CaptureTable(ZeroOrMore(gref.Line))
     Line: gref.CheckIndent * gref.Statement + NonBreakSpace*OneOrMore(Break)
 --    Block: CaptureTable(gref.Line * ZeroOrMore(OneOrMore(Break) * gref.Line))
@@ -186,6 +187,9 @@ grammar = MatchGrammar extend indentG, {
     ExprList: CaptureTable(gref.Expr * (ZeroOrMore sym(",")*gref.Expr))
     KeyValPair: Name * KeyValSep * gref.Expr / (key, value) -> {:key, :value}
     Object: StartBrace * CaptureTable OneOrLess(gref.KeyValPair * (ZeroOrMore sym(",") *gref.KeyValPair)) * EndBrace
+    _FuncParams: CaptureTable(Name * ZeroOrMore sym(",")*Name)
+    FuncParams: gref._FuncParams + sym('(')*gref._FuncParams*sym(')')
+    Function: gref.FuncParams * sym("->") * gref.Body / ast.Function 
     _Oper: Union {LogicOp, Op1, Op2, Op3, Op4}
     Operator: Union {
         opWrap LogicOp
@@ -199,6 +203,7 @@ grammar = MatchGrammar extend indentG, {
         Num
         SingleQuotedString
         DoubleQuotedString
+        gref.Function/ast.FunctionLit
         gref.Object/ast.ObjectLit
     }
     Expr: Union {
@@ -214,22 +219,6 @@ grammar = MatchGrammar extend indentG, {
 parse = (codeString) -> 
     indentLevel = 0
     lpeg.match(grammar, codeString)
-
-astToString = (node) ->
-    if node == nil 
-        return ""
-    if type(node) ~= "table" 
-        return node
-    if #node > 0
-        parts = {}
-        for i=1,#node
-            append(parts, astToString(node[i]))
-        return table.concat parts, ' '
-    if node.key
-        return "#{node.key}: #{astToString(node.value)}"
-    if node.kind
-        return "(#{node.kind}: #{astToString(node.value)})"
-    return ""
 
 return {
     :parse, :astToString

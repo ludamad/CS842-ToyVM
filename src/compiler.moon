@@ -14,6 +14,7 @@ col = require "system.AnsiColors"
 M = {} -- Module
 INT_SIZE = 4
 VAL_SIZE = 8
+M.VAL_SIZE = VAL_SIZE
 
 -- Anything that successfully AND's with
 -- almost all 0s into 0 is true
@@ -39,7 +40,6 @@ unboxInt = (f, val) ->
     return f\shr(val, longConst(f, 32)) 
 boxInt = (f, val) ->
     shift = f\shl(val, longConst(f, 32))
-    print shift, 'shift'
     return f\add(longConst(f, M.TYPE_TAG_INT), shift) 
 boxBool = (f, val) ->
     return f\add(longConst(f, M.TYPE_TAG_BOOL), f\shl(val, longConst(f, 32))) 
@@ -57,10 +57,7 @@ cFaintW = (s) -> col.WHITE(s, col.FAINT)
 stackStore = (f, index, val) ->
     f\storeRelative(f.stackFrameVal, VAL_SIZE*index, val)
 stackLoad = (f, index) ->
-    print 'stackLoad', f, index
     val = f\loadRelative(f.stackFrameVal, VAL_SIZE*index, lj.ulong)
-    shift = f\shl(val, longConst(f, 32))
-    print 'shift', shift
     return val
 -- Offset is 0 or 1:
 StackRef = newtype {
@@ -144,6 +141,7 @@ ast.installOperation {
             arg\symbolResolve(f)
             -- Ensure that each is allocated to a subsequent index:
             arg.dest or= StackRef()
+        @dest or= StackRef() -- Our return value requires one, as well.
     -- Assignables:
     RefStore: (f) =>
         sym = f.scope\get(@name)
@@ -259,9 +257,6 @@ ast.installOperation {
     recurseName: "_compileValRecurse"
     -- AST node handlers:
     RefLoad: (f) => 
-        print "REFLOAD"
-        boxInt f, @symbol\load(f)
-        print "REFLOAD2"
         return @symbol\load(f)
     IntLit: (f) =>
         return taggedIntVal(f, tonumber @value)
@@ -291,23 +286,9 @@ ast.installOperation {
             compileNumCheck(val1)
             compileNumCheck(val2)
         i1 = unboxInt(f, val1)
-        print 'i1'
         i2 = unboxInt(f,val2)
-        print 'i2'
         ret = op(f,i1, i2) 
         return boxer(f, ret)
-    FuncCall: (f) =>
-        @_compileRecurse(f)
-        fVal = loadE(f, @func)
-        stackLoc = @args[#@args].dest.index
-        callSpace = longConst(f, VAL_SIZE * (stackLoc+1))
-        skipFiddle = (stackLoc + 1 == f.stackPtrsUsed)
-        if not skipFiddle
-            f\storeRelative(f.stackTopPtr, 0, f\add(f.stackFrameVal, callSpace))
-        val = f\callIndirect(fVal, {intConst(f, #@args)}, lj.uint, {lj.uint})
-        if not skipFiddle
-            f\storeRelative(f.stackTopPtr, 0, f.stackTopVal)
-        return val 
 }
 
 ast.installOperation {
@@ -337,6 +318,17 @@ ast.installOperation {
         print "after"
     Block: (f) =>
         @_compileRecurse(f)
+    FuncCall: (f) =>
+        @_compileRecurse(f)
+        fVal = loadE(f, @func)
+        stackLoc = @args[#@args].dest.index
+        callSpace = longConst(f, VAL_SIZE * (stackLoc+1))
+        if (stackLoc + 1 ~= f.stackPtrsUsed)
+            f\storeRelative(f.stackTopPtr, 0, f\add(f.stackFrameVal, callSpace))
+        val = f\callIndirect(fVal, {intConst(f, #@args)}, lj.uint, {lj.uint})
+        -- Must restore after return value changes in top pointer:
+        f\storeRelative(f.stackTopPtr, 0, f.stackTopVal)
+        @compiledVal = @dest\load(f)
     Expr: (f) =>
         @compiledVal = @compileVal(f)
         if @dest
@@ -345,16 +337,6 @@ ast.installOperation {
     Assign: (f) =>
         @_compileRecurse(f)
 }
-
-initContext = (C) -> 
-    if not rawget C, 'initialized'
-        log "initContext is running! mmap funkiness ahead."
-        PSTACKSIZE = VAL_SIZE*1024^2
-        C.globals = ffi.new("struct LangGlobals[1]")
-        C.initialized = true
-        librun.langGlobalsInit(C.globals, PSTACKSIZE)
-        log "initContext has ran."
-
 --------------------------------------------------------------------------------
 -- Function builder, thin interface to LibJIT's function_t type.
 -- Note: lj.Function to start has many members, some commonly named. We will be extending it a lot, we must
@@ -364,7 +346,6 @@ M.FunctionBuilder = newtype {
     parent: lj.Function
     init: (@ljContext, paramNames, globalScope) =>
         lj.Function.init(@, @ljContext, lj.uint, {lj.uint})
-        initContext(@ljContext)
         level = @getMaxOptimizationLevel()
         @setOptimizationLevel(level)
         @scope = M.Scope(globalScope)
@@ -423,11 +404,11 @@ M.FunctionBuilder = newtype {
                 nameCache[digits] ..= math.floor(cntr/#names)
             cntr += 1
             return nameCache[digits]
-        for i=#d,1,-1
-            if d[i]\find('outgoing') or d[i]\find('return_reg') or d[i]\find('ends')
-                for j=i+1, #d
-                    d[j-1] = d[j]
-                d[#d] = nil
+       -- for i=#d,1,-1
+       --     if d[i]\find('outgoing') or d[i]\find('return_reg') or d[i]\find('ends')
+       --         for j=i+1, #d
+       --             d[j-1] = d[j]
+       --         d[#d] = nil
 
         cnt = 1
         for i=1,#d

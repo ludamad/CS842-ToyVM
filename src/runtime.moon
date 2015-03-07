@@ -18,13 +18,43 @@ makeGlobalScope = (ljContext) ->
     C or= require "compiler"
     scope = C.Scope()
 
+    {:pstack, :pstackTop} = ljContext.globals[0]
+    pstackTop = ffi.cast("LangValue**", pstackTop)
+    getArgs = (n) ->
+        return pstackTop[0] - n
+
+    setRet = (n, r, type) ->
+        top = pstackTop[0]
+        bottom = pstackTop[0] - n + 1
+        pstackTop[0] = bottom
+        ffi.cast("#{type}*", bottom)[-1] = r
+        while bottom < top
+            ffi.cast("uint64_t*", bottom)[0] = 0
+            bottom += 1
+        return 1
+
+    toStr = (valPtr) ->
+        val = valPtr[0]
+        assert val.tag ~= 0, 'nil value!'
+        if val.tag == C.TYPE_TAG_INT
+            v = tostring(val.val)
+            return librun.langStringCopy(v, #v)
+        if val.tag == C.TYPE_TAG_BOOL
+            v = if val.val == 0 then 'false' else 'true'
+            return librun.langStringCopy(v, #v)
+        return (ffi.cast "LangString*", valPtr)[0]
+
     -- Runtime functions.
     -- LuaJIT 'converts' these to C pointers callable by libjit, what a dear ...
     funcs = {
+        tostring: (n) ->
+            assert n == 1, "tostring takes 1 argument!"
+            argPtr = getArgs(n)
+            s = toStr(argPtr)
+            return setRet(n, s, "LangString*")
         print: (n) ->
-           {:pstack, :pstackTop} = ljContext.globals[0]
-           args = ffi.cast("LangValue*",pstackTop[0]) - n
            for i=0,tonumber(n)-1
+              args = getArgs(n)
               if i >= 1 
                   io.write '\t'
               if args[i].tag == C.TYPE_TAG_INT

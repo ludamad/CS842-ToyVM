@@ -128,8 +128,8 @@ M.astTypes = {}
 A = M.astTypes
 
 A.FuncBody = StatementT {
-    List(Statement).body
-    __tostring: () =>
+    Statement.block
+    z__tostring: () =>
         __INDENT += 1
         f = "func()\n" .. table.concat(["#{@_indent()}#{v}" for v in *@body], '\n') .. "\nend"
         __INDENT -= 1
