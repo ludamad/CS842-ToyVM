@@ -132,6 +132,8 @@ ast.installOperation {
         @_symbolRecurse(f)
     Expr: (f) =>
         @_symbolRecurse(f)
+    Function: () => 
+        -- Do nothing
     Operator: (f) =>
         @_symbolRecurse(f)
         @dest = StackRef()
@@ -184,6 +186,10 @@ ast.installOperation {
         f\saveStackLoc()
         @_stackRecurse(f)
         f\loadStackLoc()
+    Function: (f) => 
+        -- Do nothing with the AST (belongs to different context)
+        if @dest
+            @dest\resolve(f)
     Expr: (f) =>
         f\saveStackLoc()
         @_stackRecurse(f)
@@ -252,6 +258,15 @@ getStringPtr = (str) ->
     return ptr
 
 
+compileFunc = (ljContext, paramNames, ast, scope) ->
+    fb = M.FunctionBuilder(ljContext, paramNames, scope)
+    ast\symbolResolve(fb)
+    ast\stackResolve(fb)
+    ast\compile(fb)
+    fb\smartDump()
+    fb\compile()
+    return fb
+
 ast.installOperation {
     methodName: "compileVal"
     recurseName: "_compileValRecurse"
@@ -263,6 +278,9 @@ ast.installOperation {
     StringLit: (f) =>
         ptr = getStringPtr(@value)
         return f\loadRelative(longConst(f, ptr), 0, lj.ulong)
+    Function: (f) =>
+        @compiledFunc = compileFunc f.ljContext, @paramNames, @body, f.scope
+        return longConst(f, @compiledFunc\toCFunction())
     Operator: (f) =>
         @_compileRecurse(f)
         val1 = loadE(f, @left)
@@ -425,7 +443,7 @@ M.FunctionBuilder = newtype {
                 if getmetatable(v) == lj.NativeFunction 
                     replaceConstant(k, v.func)
             for k, v in pairs @scope.parentScope.variables
-                if type(v.value) == 'table'
+                if rawget(v, 'value') and type(v.value) == 'table'
                     replaceConstant(v.name, v.value.func)
             replace '.L:%s*', () ->
                 s = col.WHITE("--- Section #{cnt} ---", col.FAINT)

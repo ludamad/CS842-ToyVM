@@ -127,11 +127,26 @@ Statement = checkerType {
 M.astTypes = {}
 A = M.astTypes
 
+A.Function = ExprT {
+    List(String).paramNames
+    Statement.body
+    init: () =>
+        @dest = false
+        @name = false
+    _d: () => if @dest then @dest else ''
+    __tostring: () =>
+        code = {'('..table.concat(@paramNames, ", ")..")#{@_d()} ->"}
+        __INDENT += 1
+        append code, tostring(@body)
+        __INDENT -= 1
+        return table.concat(code,'\n')
+}
+
 A.FuncBody = StatementT {
     Statement.block
-    z__tostring: () =>
+    __tostring: () =>
         __INDENT += 1
-        f = "func()\n" .. table.concat(["#{@_indent()}#{v}" for v in *@body], '\n') .. "\nend"
+        f = table.concat(["#{@_indent()}#{v}" for v in *@block.body], '\n')
         __INDENT -= 1
         return f
 }
@@ -178,7 +193,7 @@ A.StringLit = ExprT {
         return "\"#{@value}\""
 }
 
-A.ObjectLit = ExprT {
+A.Object = ExprT {
     String.value
 }
 
@@ -295,7 +310,7 @@ M.installStatementOperation  = _installOperation('_statement')
 for tname, T in pairs A
     M[tname] = T.create
     -- Ensure expression nodes show their 'dest' values
-    if T._expr 
+    if T._expr and T ~= A.Function
         oldTS = T.__tostring
         T.__tostring = () =>
             if @dest

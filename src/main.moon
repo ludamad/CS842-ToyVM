@@ -40,17 +40,19 @@ log "Compiling function: "
 compile = (str) ->
     ast = parse(str)
     fb = C.FunctionBuilder(ljContext, {}, globalScope)
-    print 'FRESH'
+    col = require "system.AnsiColors"
+    out = (s) -> print col.WHITE(s,col.FAINT)
+    out '-- Parse Tree --------------------------------------------------------------------------------'
     print ast
     ast\symbolResolve(fb)
-    print 'SYMBOLIZED'
+    out '-- Symbolized Tree ---------------------------------------------------------------------------'
     print ast
     ast\stackResolve(fb)
-    print 'STACK ALLOC\'ED'
+    out '-- Stack Allocated Tree ----------------------------------------------------------------------'
     print ast
     ast\compile(fb)
     -----
-    print 'IR Compiled--------------------------------------------------------------------------------'
+    out '-- IR Compiled -------------------------------------------------------------------------------'
     fb\smartDump()
     --print 'ASM Compiled--------------------------------------------------------------------------------'
     fb\compile()
@@ -61,15 +63,17 @@ compile = (str) ->
 
 
 program = "
-
-test = () ->
-    
-
-i = 0
-while i < 10
-    print('i = ' .. tostring(i))
-    i += 1
+s = () ->
+    print('hello from function')
+s()
 "
+
 compile(program, true)
 
+program2 = "
+i = 1
+while i < 10
+    i += 1
+    print(i)
+"
 

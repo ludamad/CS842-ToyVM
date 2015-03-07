@@ -44,7 +44,7 @@ _NonBreakSpace = ZeroOrMore MatchAnyOf " \t"
 Break = (OneOrLess "\r") * (MatchExact "\n")
 Stop = Break + EndOfLine
 
-Comment = (MatchAnyOf "--") * (ZeroOrMore Complement MatchAnyOf "\r\n") * #Stop
+Comment = (MatchExact "--") * (ZeroOrMore Complement MatchAnyOf "\r\n") * #Stop
 Space = _Space * (OneOrLess Comment)
 NonBreakSpace = _NonBreakSpace * (OneOrLess Comment)
 SomeSpace = (OneOrMore MatchAnyOf " \t") * (OneOrLess Comment)
@@ -75,7 +75,7 @@ Num = Space * (Int+Float)
 symC = (chars) -> Space * Capture(MatchExact chars)
 sym = (chars) -> Space * (MatchExact chars)
 -- In increase precendence:
-LogicOp = Space * Capture(MatchAnyOf "<>")
+LogicOp = Space * Capture(MatchAnyOf("<>") + MatchExact("<=") + MatchExact(">="))
 Op1 = Space * Capture(MatchAnyOf "%+%-")
 Op2 = symC("..") + symC("and") + symC("or")
 Op3 = Space * Capture(MatchAnyOf "%*%/%%")
@@ -126,7 +126,7 @@ _cbCheckIndent = (str, pos, indent) ->
 
 _cbAdvanceIndent = (str, pos, indent) ->
     top = _topIndent()
-    if top != -1 and indent > top
+    if indent > top
        _pushIndent(indent)
        return true
 
@@ -158,11 +158,11 @@ grammar = MatchGrammar extend indentG, {
         -- or this could be a single expression, such as in a REPL...
         gref.Expr 
     }
-    FuncBody: ( (gref.Block + CaptureTable("")) /  ast.FuncBody) 
+    FuncBody: (gref.Body /  ast.FuncBody)
   
-    Block: CaptureTable(ZeroOrMore(gref.Line))
+--    Block: CaptureTable(ZeroOrMore(gref.Line))
     Line: gref.CheckIndent * gref.Statement + NonBreakSpace*OneOrMore(Break)
---    Block: CaptureTable(gref.Line * ZeroOrMore(OneOrMore(Break) * gref.Line))
+    Block: CaptureTable(gref.Line * ZeroOrMore(OneOrMore(Break) * gref.Line))
     Statement: Union {
         gref.Loop
         gref.If
@@ -178,7 +178,7 @@ grammar = MatchGrammar extend indentG, {
         sym("for") * (Name/ast.RefStore) * sym("=") * gref.ExprList * gref.Body / ast.ForNum
     }
     If: sym("if") * gref.Expr * gref.Body / ast.If
-    Assign: (gref._Oper*MatchExact("=")  + symC("=")) * gref.ExprList
+    Assign: (gref._ValOper*MatchExact("=")  + symC("=")) * gref.ExprList
     AssignStmnt: gref.RefStoreList * gref.Assign / ast.Assign
     Declare: _Name * gref.RefStoreList * (OneOrLess gref.Assign) / ast.Declare
     RefStoreList: CaptureTable(Name/ast.RefStore * (ZeroOrMore sym(",")*(Name/ast.RefStore)))
@@ -187,10 +187,14 @@ grammar = MatchGrammar extend indentG, {
     ExprList: CaptureTable(gref.Expr * (ZeroOrMore sym(",")*gref.Expr))
     KeyValPair: Name * KeyValSep * gref.Expr / (key, value) -> {:key, :value}
     Object: StartBrace * CaptureTable OneOrLess(gref.KeyValPair * (ZeroOrMore sym(",") *gref.KeyValPair)) * EndBrace
-    _FuncParams: CaptureTable(Name * ZeroOrMore sym(",")*Name)
-    FuncParams: gref._FuncParams + sym('(')*gref._FuncParams*sym(')')
-    Function: gref.FuncParams * sym("->") * gref.Body / ast.Function 
-    _Oper: Union {LogicOp, Op1, Op2, Op3, Op4}
+    FuncParams: CaptureTable(OneOrLess(Name * ZeroOrMore(sym(",")*Name)))
+    --Function: gref.FuncParams * sym("->")  / ast.Function 
+    FuncHead: Union {
+        sym('(')* gref.FuncParams*sym(')') * sym("->")
+        gref.FuncParams * sym("->") 
+    }
+    Function: gref.FuncHead * gref.FuncBody / ast.Function
+    _ValOper: Union {Op1, Op2, Op3, Op4}
     Operator: Union {
         opWrap LogicOp
         opWrap Op1
@@ -199,12 +203,12 @@ grammar = MatchGrammar extend indentG, {
         opWrap Op4
     }
     _Expr: Union {
+        gref.Function
         Name/ast.RefLoad
         Num
         SingleQuotedString
         DoubleQuotedString
-        gref.Function/ast.FunctionLit
-        gref.Object/ast.ObjectLit
+        gref.Object/ast.Object
     }
     Expr: Union {
         gref.FuncCall
@@ -221,6 +225,6 @@ parse = (codeString) ->
     lpeg.match(grammar, codeString)
 
 return {
-    :parse, :astToString
+    :parse
 }
 
