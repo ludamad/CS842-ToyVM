@@ -1,7 +1,9 @@
 
 jiggleRef = (aPtr) ->
-    
-
+    *aPtr = "Sorry I changed you"
 
 a = 1
 
+jiggleRef(&a)
+
+print(a)

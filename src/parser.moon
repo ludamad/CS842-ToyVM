@@ -192,6 +192,7 @@ grammar = MatchGrammar extend indentG, {
 
     Assignable: Union {
         Name/ast.RefStore
+        sym("*") * gref.Expr / ast.BoxStore
     }
     AssignableList: CaptureTable(gref.Assignable * (ZeroOrMore sym(",")*gref.Assignable))
 
@@ -220,7 +221,7 @@ grammar = MatchGrammar extend indentG, {
         SingleQuotedString
         DoubleQuotedString
         sym("&") * gref.Assignable / ast.BoxGet
-        sym("*") * gref.Assignable / ast.BoxUnbox
+        sym("*") * gref.Expr / ast.BoxLoad
         gref.Object/ast.Object
     }
     Expr: Union {

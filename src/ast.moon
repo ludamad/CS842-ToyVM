@@ -173,6 +173,14 @@ A.RefStore = AssignableT {
         return "$#{@name}"
 }
 
+A.BoxStore= AssignableT {
+    Expr.ptr
+    toExpr: () =>
+        return A.BoxLoad @ptr
+    __tostring: () =>
+        return "*#{@ptr}"
+}
+
 --------------------------------------------------------------------------------
 -- Value expressions:
 --------------------------------------------------------------------------------
@@ -239,7 +247,7 @@ A.BoxGet = ExprT {
         return "&#{@ref}"
 }
 
-A.BoxUnbox = ExprT {
+A.BoxLoad = ExprT {
     Expr.ptr
     Any.dest false
     Any.compiledVal false

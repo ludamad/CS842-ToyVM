@@ -34,6 +34,8 @@ globalScope = rt.makeGlobalScope(ljContext)
 grayPrint  = (s) -> print ansiCol.WHITE(s,ansiCol.FAINT)
 compileString = (str) ->
     ast = P.parse(str)
+    grayPrint '-- Bare Parse Tree ---------------------------------------------------------------------------'
+    print(ast)
     fb = C.compileFunc(ljContext, {}, ast, globalScope)
     cFunc = fb\toCFunction()
     grayPrint '-- Stack Allocated Tree ----------------------------------------------------------------------'
