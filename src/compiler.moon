@@ -174,7 +174,7 @@ ast.installOperation {
         @_symbolRecurse(f)
         for i=1,#@vars
             var, val = @vars[i], @values[i]
-            var\generateStore(val)
+            var.symbol/link(val)
         @op = '=' -- For good measure, since operation was handled.
 }
 
@@ -313,6 +313,7 @@ ast.installOperation {
     methodName: "compile"
     recurseName: "_compileRecurse"
     FuncBody: (f) =>
+        print("Funcbody")
         compileFuncPrelude(f)
         @_compileRecurse(f)
         compileFuncReturn(f, {})
