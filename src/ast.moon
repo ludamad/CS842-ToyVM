@@ -177,7 +177,7 @@ A.RefStore = AssignableT {
         return A.RefLoad @name
     setUpForStore: (node) =>
         @symbol\link(node)
-    generateStore: (node) =>
+    generateStore: (fb, node) =>
         -- no op, we are a stack variable
     __tostring: () =>
         if @symbol
@@ -188,7 +188,10 @@ A.RefStore = AssignableT {
 A.BoxStore= AssignableT {
     Expr.ptr
     setUpForStore: (node) =>
-    generateStore: (node) =>
+    generateStore: (fb, node) =>
+        assert @ptr.compiledVal, "Box value should be compiled!"
+        assert node.compiledVal, "Node value should be compiled!"
+        fb\boxStore(@ptr.compiledVal, node.compiledVal)
 
     toExpr: () =>
         return A.BoxLoad @ptr
@@ -263,11 +266,11 @@ A.BoxGet = ExprT {
 }
 
 A.BoxNew = ExprT {
-    Expr.ptr
+    Expr.expr
     Any.dest false
     Any.compiledVal false
     __tostring: () =>
-        return "new #{@ptr}"
+        return "new #{@expr}"
 }
 
 A.BoxLoad = ExprT {

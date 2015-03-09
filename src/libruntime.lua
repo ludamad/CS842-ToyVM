@@ -31,7 +31,6 @@ ffi.cdef [[
     typedef struct {
         struct GGGGC_Header gcHeader;
         LangHeader header;
-        unsigned int __cachedHash;
         GGC_char_Array array;
     } LangString;
 

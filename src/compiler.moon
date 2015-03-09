@@ -174,7 +174,7 @@ ast.installOperation {
         @_symbolRecurse(f)
         for i=1,#@vars
             var, val = @vars[i], @values[i]
-            var.symbol/link(val)
+            var\setUpForStore(val)
         @op = '=' -- For good measure, since operation was handled.
 }
 
@@ -306,8 +306,18 @@ ast.installOperation {
         i2 = unboxInt(f,val2)
         ret = op(f,i1, i2) 
         return boxer(f, ret)
+    BoxNew: (f) => 
+        @_compileRecurse(f)
+        -- Not much else to do but ask the runtime kindly for a box.
+        box = f\boxNew()
+        expr = @expr.compiledVal
+        f\boxStore(box, expr)
+        return box
+    BoxLoad: (f) => 
+        @_compileRecurse(f)
+        -- Not much else to do but ask the runtime kindly for a box.
+        return f\boxLoad(@ptr.compiledVal)
 }
-
 
 ast.installOperation {
     methodName: "compile"
@@ -352,21 +362,20 @@ ast.installOperation {
         @compiledVal = @compileVal(f)
         if @dest
             @dest\store(f, @compiledVal)
-    RefStore: (f) =>
+    Assignable: (f) => @_compileRecurse(f)
     Assign: (f) =>
-        @_compileRecurse(f)
+        for i=1,#@vars
+            var, val = @vars[i], @values[i]
+            val\compile(f)
+            var\compile(f)
+            var\generateStore(f, val)
 }
 
-_V = (f, v) ->
-    if type(v) == "number"
-        return longConst(f, v)
-    return v
-
 refLoad = (f, v, offset = 0) ->
-    return f\loadRelative(_V(v), offset, lj.ulong)
+    return f\loadRelative(v, offset, lj.ulong)
 
 refStore = (f, v, data, offset = 0) ->
-    return f\storeRelative(_V(v), offset, data)
+    return f\storeRelative(v, offset, data)
 
 --------------------------------------------------------------------------------
 -- Function builder, thin interface to LibJIT's function_t type.
@@ -407,8 +416,10 @@ M.FunctionBuilder = newtype {
         return @stackLoc - 1
     boxNew: () =>
         {:types} = @ljContext.globals[0]
-        {:boxTypePtr}  = @ljContext
-        return @call(runtime.gcMalloc, refLoad(@, boxTypePtr))
+        {:boxType}  = types
+        boxPtrVal = longConst(@, boxType)
+        val = @call(runtime.gcMalloc, 'NewBox', {refLoad(@, boxPtrVal)})
+        return val
     boxLoad: (box) =>
         return refLoad(@, box, VAL_SIZE) 
     boxStore: (box, val) =>
@@ -434,7 +445,7 @@ M.compileFunc = (ljContext, paramNames, ast, scope) ->
     ast\symbolResolve(fb)
     ast\stackResolve(fb)
     ast\compile(fb)
-    log fb\smartDump()
+    print fb\smartDump()
     fb\compile()
     return fb
 
@@ -442,7 +453,7 @@ M.compileFunc = (ljContext, paramNames, ast, scope) ->
 -- Colorful LibJIT IR dumper:
 --------------------------------------------------------------------------------
 M.FunctionBuilder.smartDump = () =>
-    {:pstackTop} = @ljContext.globals[0]
+    {:pstackTop, :types} = @ljContext.globals[0]
     f = ffi.cast("unsigned long", pstackTop)
     stackStr = tostring(f) 
     stackStr = stackStr\sub(1, #stackStr-3)
@@ -499,11 +510,17 @@ M.FunctionBuilder.smartDump = () =>
             color = col.pickCol(tonumber digits)
             return color(nameBetter digits)
         replace '(%d+)%[0%]', (digits) ->
+            -- This should be a constant GC object.
+            -- (Otherwise, we may very well segfault :-)
             asLong = ffi.cast("unsigned long", tonumber digits)
-            asPtr = ffi.cast("LangString**", asLong)[0]
-            arr = asPtr[0].array[0]
-            newStr = ffi.string(arr.a__data, arr.length - 1)
-            return col.MAGENTA("\"#{newStr}\"", col.BOLD)
+            asS = ffi.cast("LangString**", asLong)[0]
+            if asS[0].gcHeader.descriptor__ptr == types.stringType[0]
+                arr = asS[0].array[0]
+                newStr = ffi.string(arr.a__data, arr.length - 1)
+                return col.MAGENTA("\"#{newStr}\"", col.BOLD)
+            if asS[0].gcHeader.descriptor__ptr == types.stringType[0][0].header.descriptor__ptr
+                return col.WHITE("<BoxType>", col.BOLD)
+            return "*(GC** #{digits})"
         replace '(%d+)', (digits) ->
             if tonumber(digits) < 4294967296
                 return digits

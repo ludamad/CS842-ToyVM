@@ -1,2 +1,8 @@
-print(j)
 
+i = 0
+j = 0
+while i < 10
+    i += 1
+    while j < 10
+        j += i
+print(j)

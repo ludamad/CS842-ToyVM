@@ -167,8 +167,7 @@ grammar = MatchGrammar extend indentG, {
     }
     FuncBody: (gref.Body /  ast.FuncBody)
   
---    Block: CaptureTable(ZeroOrMore(gref.Line))
-    Line: gref.CheckIndent * gref.Statement + NonBreakSpace*OneOrMore(Break)
+    Line: gref.CheckIndent * gref.Statement * ZeroOrMore(lineEnding) + NonBreakSpace*OneOrMore(Break)
     Block: CaptureTable(gref.Line * ZeroOrMore(gref.Line))
     Statement: Union {
         gref.FuncCall    / (@isExpression=false)=>@
@@ -179,7 +178,7 @@ grammar = MatchGrammar extend indentG, {
         gref.FuncCallS   / (@isExpression=false)=>@
     }
     InBlock: gref.Advance * gref.Block * gref.PopIndent
-    Body: OneOrMore(lineEnding) * gref.InBlock / ast.Block -- an indented block
+    Body: ZeroOrMore(lineEnding) * gref.InBlock / ast.Block -- an indented block
     Loop: Union {
         sym('while') * gref.Expr*gref.Body/ast.While
         sym("for") * gref.AssignableList * sym("in") * gref.ExprList * gref.Body / ast.ForObj
@@ -192,7 +191,7 @@ grammar = MatchGrammar extend indentG, {
 
     Assignable: Union {
         Name/ast.RefStore
-        sym("%*") * gref.Expr / ast.BoxStore
+        sym("*") * gref.Expr / ast.BoxStore
     }
     AssignableList: CaptureTable(gref.Assignable * (ZeroOrMore sym(",")*gref.Assignable))
 
@@ -216,19 +215,20 @@ grammar = MatchGrammar extend indentG, {
         opWrap Op4
     }
     _Expr: Union {
+        sym("new") * gref.Expr / ast.BoxNew
         Name/ast.RefLoad
         Num
         SingleQuotedString
         DoubleQuotedString
         sym("&") * gref.Assignable / ast.BoxGet
-        sym("%*") * gref.Expr / ast.BoxLoad
+        sym("*") * gref.Expr / ast.BoxLoad
         gref.Object/ast.Object
     }
     Expr: Union {
+        gref.FuncCall
         gref.Operator
         gref._Expr
         gref.Function
-        gref.FuncCall
     }
     -- Note, FuncCall is both an expression and a statement
     FuncCall: gref._Expr * sym("(") * gref.ExprList * sym(")") /ast.FuncCall
