@@ -118,6 +118,6 @@ M.checkedType = (t) ->
     T.create = M.makeInit(T, t)
     getmetatable(T).__call = (...) =>
         return T.create(...)
-    return T
+    return T, cpy
 
 return M

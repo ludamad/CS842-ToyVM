@@ -137,6 +137,8 @@ ast.installOperation {
     Operator: (f) =>
         @_symbolRecurse(f)
         @dest = StackRef()
+    BoxStore: (f) =>
+        @_symbolRecurse(f)
     FuncCall: (f) =>
         @func\symbolResolve(f)
         for arg in *@args
@@ -172,7 +174,7 @@ ast.installOperation {
         @_symbolRecurse(f)
         for i=1,#@vars
             var, val = @vars[i], @values[i]
-            var.symbol\link(val)
+            var\generateStore(val)
         @op = '=' -- For good measure, since operation was handled.
 }
 
@@ -354,6 +356,17 @@ ast.installOperation {
         @_compileRecurse(f)
 }
 
+_V = (f, v) ->
+    if type(v) == "number"
+        return longConst(f, v)
+    return v
+
+refLoad = (f, v, offset = 0) ->
+    return f\loadRelative(_V(v), offset, lj.ulong)
+
+refStore = (f, v, data, offset = 0) ->
+    return f\storeRelative(_V(v), offset, data)
+
 --------------------------------------------------------------------------------
 -- Function builder, thin interface to LibJIT's function_t type.
 -- Note: lj.Function to start has many members, some commonly named. We will be extending it a lot, we must
@@ -391,6 +404,15 @@ M.FunctionBuilder = newtype {
         @stackLoc += 1
         @stackPtrsUsed = math.max(@stackLoc, @stackPtrsUsed)
         return @stackLoc - 1
+    boxNew: () =>
+        {:types} = @ljContext.globals[0]
+        {:boxTypePtr}  = @ljContext
+        return @call(runtime.gcMalloc, refLoad(@, boxTypePtr))
+    boxLoad: (box) =>
+        return refLoad(@, box, VAL_SIZE) 
+    boxStore: (box, val) =>
+        return refStore(@, box, val, VAL_SIZE) 
+        
     popStackVars: (n) =>
         for i=1,n
             endV = @stackVars[#@stackVars]

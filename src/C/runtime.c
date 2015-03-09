@@ -69,15 +69,21 @@ void** langCreatePointer() {
     return ret;
 }
 
+
 /* map definitions */
 GGC_MAP_DEFN(LangShapeMap, LangString, LangShape, stringHash, stringCmp);
 GGC_MAP_DEFN(LangIndexMap, LangString, GGC_size_t_Unit, stringHash, stringCmp);
 
+struct LangTypeDescriptors {
+    struct GGGGC_Descriptor** boxType;
+    struct GGGGC_Descriptor** stringType;
+};
 struct LangGlobals {
     void** pstack;
     void*** pstackTop;
     void* emptyShape;
     void* defaultValue;
+    struct LangTypeDescriptors types;
 };
 
 void* langDefaultValue;
@@ -107,6 +113,10 @@ void langGlobalsInit(struct LangGlobals* globals, int pstackSize) {
     globals->emptyShape = emptyShape;
     globals->defaultValue = langStringCopy("", 0);
     langDefaultValue = globals->defaultValue;
+    globals->types.boxType = (struct GGGGC_Descriptor**) langCreatePointer();
+    *globals->types.boxType = LangBoxedRef__descriptorSlot.descriptor;
+    globals->types.stringType = (struct GGGGC_Descriptor**) langCreatePointer();
+    *globals->types.stringType = LangString__descriptorSlot.descriptor;
 
     GGC_POP();
     {
@@ -169,11 +179,11 @@ void langStringPrint(LangString str) {
 
 /* get the index to which a member belongs in this object, creating one if requested */
 size_t langGetObjectMemberIndex(void **pstack, LangObject object,
-		LangString member, LangInlineCache *cache, int create) {
+	LangString member, LangInlineCache *cache, int create) {
 	LangShape shape = NULL, cshape = NULL;
 	LangShapeMap shapeChildren = NULL;
 	LangIndexMap shapeMembers = NULL;
-	LangValueArray oldObjectMembers = NULL, newObjectMembers = NULL;
+	LangNullArray oldObjectMembers = NULL, newObjectMembers = NULL;
 	GGC_size_t_Unit indexBox = NULL;
 	size_t ret;
 
@@ -209,9 +219,9 @@ size_t langGetObjectMemberIndex(void **pstack, LangObject object,
 		/* expand the object */
 	oldObjectMembers = GGC_RP(object, members);
 	ret = oldObjectMembers->length;
-	newObjectMembers = GGC_NEW_PA(LangValue, ret + 1);
+	newObjectMembers = GGC_NEW_PA(LangNull, ret + 1);
 	memcpy(newObjectMembers->a__ptrs, oldObjectMembers->a__ptrs,
-			ret * sizeof(LangValue));
+			ret * sizeof(LangNull));
 	GGC_WAP(newObjectMembers, ret, langDefaultValue);
 	GGC_WP(object, members, newObjectMembers);
 

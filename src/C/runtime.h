@@ -13,23 +13,55 @@ typedef struct {
     int val, tag;
 } value_t;
 
+/* object shape */
+typedef struct LangShapeMap__struct* LangShapeMap_;
+typedef struct LangIndexMap__struct* LangIndexMap_;
+
+enum {
+    /* Should we pass this object by reference?
+     * In this case, the object should be permanently marked 'free',
+     * and on attempt to unfree it, this flag is checked. */
+    LANG_FLAG_BYREF = 1 << 0,
+    /* Is it legal to mutate this object? (It is assumed first that we fully own it).
+     * Alternatively, we may designate objects such as modules constant 
+     * to avoid copying, until a mutate.
+     * All operations thus occur on a parent pointer, which houses the 
+     * location of the object.
+     *
+     * This mimicks how boxes are used in the language. */
+    LANG_FLAG_MUTABLE = 1 << 1,
+    /* Has this object been conceptually 'freed'? 
+     * This provides an optimization for cases where the last reference to this value
+     * will be out of scope by the time it is used. 
+     * The next reference to store this object will claim it very cheaply. */
+    LANG_FLAG_FREE = 1 << 2,
+    /* Has this object been stored in a canonical form? 
+     * This is necessary knowledge for fast inequality checks for example
+     * with strings, and for properly removing the strings from the 
+     * intern pool. */
+    LANG_INTERNED = 1 << 3
+};
+
+typedef struct {
+    // 0 if not hashed. The object specific hash function is called here, and cached.
+    unsigned int cachedHash;
+    // Object flags which configure runtime copying behaviour, etc.
+    unsigned int flags;
+} LangHeader;
+
+
+/* boxed strings */
+GGC_TYPE(LangNull)
+    GGC_MDATA(LangHeader, header);
+GGC_END_TYPE(LangNull, GGC_NO_PTRS);
+
 /* boxed strings */
 GGC_TYPE(LangString)
-    GGC_MDATA(unsigned int, __cachedHash);
+    GGC_MDATA(LangHeader, header);
     GGC_MPTR(GGC_char_Array, value);
 GGC_END_TYPE(LangString,
     GGC_PTR(LangString, value)
     );
-
-/* the type tag for boxed data types */
-GGC_TYPE(LangValue)
-    GGC_MDATA(int, val);
-    GGC_MDATA(int, tag);
-GGC_END_TYPE(LangValue, GGC_NO_PTRS);
-
-/* object shape */
-typedef struct LangShapeMap__struct* LangShapeMap_;
-typedef struct LangIndexMap__struct* LangIndexMap_;
 
 GGC_TYPE(LangShape)
     GGC_MDATA(size_t, size);
@@ -41,8 +73,9 @@ GGC_END_TYPE(LangShape,
     );
 
 GGC_TYPE(LangObject)
+    GGC_MDATA(LangHeader, header);
     GGC_MPTR(LangShape, shape);
-    GGC_MPTR(LangValueArray, members);
+    GGC_MPTR(LangNullArray, members);
 GGC_END_TYPE(LangObject,
     GGC_PTR(LangObject, shape)
     GGC_PTR(LangObject, members)
@@ -55,13 +88,34 @@ GGC_MAP_DECL(LangShapeMap, LangString, LangShape);
 GGC_UNIT(size_t)
 GGC_MAP_DECL(LangIndexMap, LangString, GGC_size_t_Unit);
 
+GGC_TYPE(LangBoxedRef)
+    GGC_MDATA(LangHeader, header);
+    GGC_MPTR(void*, langPtr);
+GGC_END_TYPE(LangBoxedRef,
+    GGC_PTR(LangBoxedRef, langPtr)
+);
+
 GGC_TYPE(LangInlineCache)
     GGC_MPTR(LangShape, cachedShape);
     GGC_MPTR(LangString, cachedMember);
     GGC_MDATA(int, cachedIndex); /* Index in the cached shape */
-        GGC_END_TYPE(LangInlineCache,
+GGC_END_TYPE(LangInlineCache,
     GGC_PTR(LangInlineCache, cachedShape)
     GGC_PTR(LangInlineCache, cachedMember)
 );
+/****************************************************************************
+ * Language closures and 'native' functions:
+ ****************************************************************************/
+
+GGC_TYPE(LangFunction)
+    GGC_MDATA(LangHeader, header);
+    /* Not allocated by GGGGC: */
+    GGC_MPTR(void*, cFuncPtr);
+    /**/
+    GGC_MPTR(LangNullArray, capturedVars);
+GGC_END_TYPE(LangFunction,
+    GGC_PTR(LangFunction, capturedVars)
+);
+
 
 #endif /*RUNTIME_H*/

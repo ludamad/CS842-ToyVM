@@ -60,7 +60,7 @@ NodeT = (t) ->
 
         __INDENT -= 1
         return table.concat(lines, '\n')
-    T = checkedType(t)
+    T, methods = checkedType(t)
     T.toString = () =>
         __INDENT = 1
         return tostring(@)
@@ -71,6 +71,13 @@ NodeT = (t) ->
         if rawget @, 'initialized'
             error "Cannot add '#{k}' to initialized object! #{toName T.create}"
         rawset(@, k, v)
+
+    getmetatable(methods).__index = (k) =>
+        raw = rawget(@, k)
+        if raw == nil
+            error "No member '#{k}' in #{toName T.create}!"
+        return raw
+ 
     return T
 
 ExprT = (t) ->
@@ -162,11 +169,16 @@ A.FuncBody = StatementT {
 -- Assignable (and addressable) expressions:
 --------------------------------------------------------------------------------
 
+-- Store node for stack variables
 A.RefStore = AssignableT {
     String.name
     Any.symbol false
     toExpr: () =>
         return A.RefLoad @name
+    setUpForStore: (node) =>
+        @symbol\link(node)
+    generateStore: (node) =>
+        -- no op, we are a stack variable
     __tostring: () =>
         if @symbol
             return tostring(@symbol)
@@ -175,6 +187,9 @@ A.RefStore = AssignableT {
 
 A.BoxStore= AssignableT {
     Expr.ptr
+    setUpForStore: (node) =>
+    generateStore: (node) =>
+
     toExpr: () =>
         return A.BoxLoad @ptr
     __tostring: () =>
@@ -245,6 +260,14 @@ A.BoxGet = ExprT {
     Any.compiledVal false
     __tostring: () =>
         return "&#{@ref}"
+}
+
+A.BoxNew = ExprT {
+    Expr.ptr
+    Any.dest false
+    Any.compiledVal false
+    __tostring: () =>
+        return "new #{@ptr}"
 }
 
 A.BoxLoad = ExprT {

@@ -8,17 +8,39 @@ ffi.cdef [[
     void** createPointerStack(int maxSize);
     size_t langGetObjectMemberIndex(void **pstack, void* object, void* member, void* cache, int create);
 
+    struct LangTypeDescriptors {
+        struct GGGGC_Descriptor** boxType;
+        struct GGGGC_Descriptor** stringType;
+    };
     struct LangGlobals {
         void** pstack;
         void*** pstackTop;
         void* emptyShape;
         void* defaultValue;
+        struct LangTypeDescriptors types;
     };
+
     typedef struct {
-        struct GGGGC_Header header;
+        // 0 if not hashed. The object specific hash function is called here, and cached.
+        unsigned int cachedHash;
+        // Object flags which configure runtime copying behaviour, etc.
+        unsigned int flags;
+    } LangHeader;
+
+
+    typedef struct {
+        struct GGGGC_Header gcHeader;
+        LangHeader header;
         unsigned int __cachedHash;
         GGC_char_Array array;
     } LangString;
+
+    typedef struct {
+        struct GGGGC_Header gcHeader;
+        LangHeader header;
+        void* value;
+    } LangBoxedRef;
+
 
     void** langCreatePointer();
     void langStringPrint(LangString* str);

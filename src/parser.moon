@@ -216,19 +216,21 @@ grammar = MatchGrammar extend indentG, {
         opWrap Op4
     }
     _Expr: Union {
+        sym("new") * gref.Expr / ast.BoxNew
         Name/ast.RefLoad
         Num
         SingleQuotedString
         DoubleQuotedString
+        gref.Object/ast.Object
         sym("&") * gref.Assignable / ast.BoxGet
         sym("*") * gref.Expr / ast.BoxLoad
-        gref.Object/ast.Object
+        gref.Function
+        sym("(") * gref.Expr * sym(")")
     }
     Expr: Union {
         gref.FuncCall
         gref.Operator
         gref._Expr
-        gref.Function
     }
     -- Note, FuncCall is both an expression and a statement
     FuncCall: gref._Expr * sym("(") * gref.ExprList * sym(")") /ast.FuncCall
