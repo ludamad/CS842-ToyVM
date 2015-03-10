@@ -27,6 +27,10 @@ ffi.cdef [[
         unsigned int flags;
     } LangHeader;
 
+    typedef struct {
+        int tag, val;
+    } LangValue;
+    typedef unsigned int (*LangFunc)(unsigned int n);
 
     typedef struct {
         struct GGGGC_Header gcHeader;
@@ -37,9 +41,8 @@ ffi.cdef [[
     typedef struct {
         struct GGGGC_Header gcHeader;
         LangHeader header;
-        void* value;
+        LangValue value[1];
     } LangBoxedRef;
-
 
     void** langCreatePointer();
     void langStringPrint(LangString* str);

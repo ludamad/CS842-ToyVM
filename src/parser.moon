@@ -39,7 +39,7 @@ Var = lpeg.V
 -- Common parsing elements. Plagarized from Moonscript's parser.
 ------------------------------------------------------------------------------
 
-_Space = ZeroOrMore MatchAnyOf " \n\r\t"
+_Space = ZeroOrMore MatchAnyOf " \t"
 _NonBreakSpace = ZeroOrMore MatchAnyOf " \t"
 Break = (OneOrLess "\r") * (MatchExact "\n")
 Stop = Break + EndOfLine
@@ -156,7 +156,7 @@ nast = setmetatable {}, {
         __index: (k) =>
             injectArr(k)
     }
-lineEnding = NonBreakSpace * Break
+lineEnding = Space * Break
 grammar = MatchGrammar extend indentG, {
     gref.SourceCode -- Initial Rule
     SourceCode: Union {
@@ -167,7 +167,7 @@ grammar = MatchGrammar extend indentG, {
     }
     FuncBody: (gref.Body /  ast.FuncBody)
   
-    Line: gref.CheckIndent * gref.Statement * ZeroOrMore(lineEnding) + NonBreakSpace*OneOrMore(Break)
+    Line: gref.CheckIndent * gref.Statement * ZeroOrMore(lineEnding) + OneOrMore(lineEnding)
     Block: CaptureTable(gref.Line * ZeroOrMore(gref.Line))
     Statement: Union {
         gref.FuncCall    / (@isExpression=false)=>@

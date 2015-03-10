@@ -3,6 +3,7 @@ jiggleRef = (aPtr) ->
 
 a = new 1
 
+print("Before", a)
 jiggleRef(a)
 
-print(a)
+print("After", a)

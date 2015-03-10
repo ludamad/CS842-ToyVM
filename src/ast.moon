@@ -2,7 +2,6 @@ ffi = require "ffi"
 runtime = require "runtime"
 librun = require 'libruntime'
 gc = require "ggggc"
-Cggggc = require "compiler_ggggc"
 
 lj = require "libjit"
 
@@ -147,6 +146,7 @@ A.Function = ExprT {
     Any.dest false
     Any.name false
     Any.compiledVal false
+    Any.compiledFunc false
     _d: () => if @dest then @dest else ''
     __tostring: () =>
         code = {'('..table.concat(@paramNames, ", ")..")#{@_d()} ->"}

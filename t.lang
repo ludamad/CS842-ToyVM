@@ -1,4 +1,2 @@
 a = new 1
-print(*a)
-*a = 'hi'
-print(*a)
+*a = 1

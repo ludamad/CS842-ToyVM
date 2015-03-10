@@ -7,36 +7,21 @@ lj = require "libjit"
 ffi = require "ffi"
 librun = require "libruntime"
 rt = require "runtime"
-C = require "compiler"
-P = require "parser"
 ansiCol = require "system.AnsiColors"
---------------------------------------------------------------------------------
--- Constants
---------------------------------------------------------------------------------
-
-PSTACKSIZE = C.VAL_SIZE*1024^2
+import LangContext, compileFuncBody, parse from require "cmp"
 
 --------------------------------------------------------------------------------
 -- Runtime initialization
 --------------------------------------------------------------------------------
-
-makeContext = () ->
-    con = lj.Context()
-    con.globals = ffi.new("struct LangGlobals[1]")
-    con.initialized = true
-    librun.langGlobalsInit(con.globals, PSTACKSIZE)
-    log "makeContext(): makeContext has ran."
-    return con
-
-ljContext = makeContext()
+ljContext = LangContext()
 globalScope = rt.makeGlobalScope(ljContext)
 
 grayPrint  = (s) -> print ansiCol.WHITE(s,ansiCol.FAINT)
 compileString = (str) ->
-    ast = P.parse(str)
+    ast = parse(str)
     grayPrint '-- Bare Parse Tree ---------------------------------------------------------------------------'
     print(ast)
-    fb = C.compileFunc(ljContext, {}, ast, globalScope)
+    fb = compileFuncBody(ljContext, {}, ast, globalScope)
     cFunc = fb\toCFunction()
     grayPrint '-- Stack Allocated Tree ----------------------------------------------------------------------'
     print(ast)

@@ -3,22 +3,19 @@ lj = require "libjit"
 librun = require "libruntime"
 gc = require "ggggc"
 
-ffi.cdef [[
-    typedef struct {
-        int tag, val;
-    } LangValue;
-    typedef unsigned int (*LangFunc)(unsigned int n);
-]]
+matchesType = (v, desc) ->
+    asS = ffi.cast("LangString**", v)[0]
+    descPtr = asS[0].gcHeader.descriptor__ptr 
+    return (descPtr == desc)
 
-longConst = (f, v) ->
-    return f\createLongConstant(lj.ulong, ffi.cast("int64_t",v))
-lcast = (v) -> ffi.cast 'uint64_t', v
 local C 
 makeGlobalScope = (ljContext) ->
-    C or= require "compiler"
+    C or= require "cmp"
     scope = C.Scope()
 
-    {:pstack, :pstackTop} = ljContext.globals[0]
+    {:pstack, :pstackTop, :types} = ljContext.globals[0]
+    {:boxType, :stringType} = types
+
     pstackTop = ffi.cast("LangValue**", pstackTop)
     getArgs = (n) ->
         return pstackTop[0] - n
@@ -44,6 +41,25 @@ makeGlobalScope = (ljContext) ->
             return librun.langStringCopy(v, #v)
         return (ffi.cast "LangString*", valPtr)[0]
 
+    printVal = (ptr) ->
+      if ptr[0].tag == 0
+          io.write 'nil'
+      elseif ptr[0].tag == C.TYPE_TAG_INT
+          io.write(ptr[0].val)
+      elseif ptr[0].tag == C.TYPE_TAG_BOOL
+          if ptr[0].val ~= 0
+              io.write("true")
+          else
+              io.write("false")
+      elseif matchesType(ptr, boxType[0])
+          asBox = ffi.cast("LangBoxedRef**", ptr)[0]
+          io.write "ptr["
+          printVal(asBox[0].value)
+          io.write "]"
+      elseif matchesType(ptr, stringType[0])
+          asString = ffi.cast("LangString**", ptr)[0]
+          librun.langStringPrint(asString)
+
     -- Runtime functions.
     -- LuaJIT 'converts' these to C pointers callable by libjit, what a dear ...
     funcs = {
@@ -60,18 +76,7 @@ makeGlobalScope = (ljContext) ->
               log(args[i].tag, args[i].val)
               if i >= 1 
                   io.write '\t'
-              if args[i].tag == 0
-                  io.write 'nil'
-              elseif args[i].tag == C.TYPE_TAG_INT
-                  io.write(args[i].val)
-              elseif args[i].tag == C.TYPE_TAG_BOOL
-                  if args[i].val ~= 0
-                      io.write("true")
-                  else
-                      io.write("false")
-              else -- Assume string!
-                  asString = ffi.cast("void**", args + i)[0]
-                  librun.langStringPrint(asString)
+              printVal(args + i)
            io.write('\n')
            return 0
     }
