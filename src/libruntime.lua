@@ -52,7 +52,7 @@ ffi.cdef [[
         void* cFuncPtr;
         /* Array of LangValue's to use as initial arguments:*/
         void* capturedVars;
-    ) LangFunction;
+    } LangFunction;
 
     void** langCreatePointer();
     void langStringPrint(LangString* str);
@@ -61,6 +61,7 @@ ffi.cdef [[
     LangString* langStringCopy(const char *value, size_t len);
     void langStringPrint(LangString* str);
     LangString* langStringConcat(LangString* str1, LangString* str2);
+
 ]]
 
 return gc
