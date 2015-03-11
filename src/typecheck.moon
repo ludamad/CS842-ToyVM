@@ -97,7 +97,9 @@ M.makeInit = (T, fields) ->
             defS = pretty_s fields[i]\default()
             append(code, "self.#{name} = #{name} ~= nil and #{name} or #{defS}")
         else
+            append code, "if #{name} ~= false then"
             fields[i]\emitCheck(code, ids[i])
+            append code "end"
             append(code, "self.#{name} = #{name}") 
     append code, "self:init()"
     append code, "return self\nend"

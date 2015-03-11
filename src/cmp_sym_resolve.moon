@@ -77,9 +77,11 @@ M.Scope = newtype {
         scope = @
         while scope ~= false
             if scope.variables[name] ~= nil
-                return scope.variables[name]
+                return scope.variables[name], scope
             scope = scope.parentScope
-        return nil
+        return nil, scope
+    ensureAddressable: (block, name) => 
+        var, scope = @get(name)
 }
 
 --------------------------------------------------------------------------------
@@ -89,50 +91,50 @@ M.Scope = newtype {
 ast.installOperation {
     methodName: "symbolResolve"
     recurseName: "_symbolRecurse"
-    Statement: (f) =>
-        @_symbolRecurse(f)
-    Expr: (f) =>
-        @_symbolRecurse(f)
+    Statement: (S) =>
+        @_symbolRecurse(S)
+    Expr: (S) =>
+        @_symbolRecurse(S)
     Function: () =>
         -- Do nothing
-    Operator: (f) =>
-        @_symbolRecurse(f)
+    Operator: (S) =>
+        @_symbolRecurse(S)
         @dest = StackRef()
-    BoxStore: (f) =>
-        @_symbolRecurse(f)
-    FuncCall: (f) =>
-        @func\symbolResolve(f)
+    BoxStore: (S) =>
+        @_symbolRecurse(S)
+    FuncCall: (S) =>
+        @func\symbolResolve(S)
         for arg in *@args
-            arg\symbolResolve(f)
+            arg\symbolResolve(S)
             -- Ensure that each is allocated to a subsequent index:
             arg.dest or= StackRef()
         if @isExpression
             @dest or= StackRef() -- Our return value requires one, as well.
     -- Assignables:
-    RefStore: (f) =>
-        sym = f.scope\get(@name)
+    RefStore: (S) =>
+        sym = S\get(@name)
         if sym == nil
             sym = M.Variable(f, @name)
-            f.scope\declare(sym)
+            S\declare(sym)
         @symbol = sym
     -- Expressions:
-    RefLoad: (f) =>
-        sym = f.scope\get(@name)
+    RefLoad: (S) =>
+        sym = S\get(@name)
         if sym == nil
             error("No such symbol '#{@name}'.")
         @symbol = sym
-    While: (f) =>
-        @_symbolRecurse(f)
+    While: (S) =>
+        @_symbolRecurse(S)
         @condition.dest = false
-    If: (f) =>
-        @_symbolRecurse(f)
+    If: (S) =>
+        @_symbolRecurse(S)
         @condition.dest = false
     -- Statements:
-    Assign: (f) =>
+    Assign: (S) =>
         for i=1,#@vars
             if @op ~= '='
                 @values[i] = ast.Operator(@vars[i]\toExpr(), @op, @values[i])
-        @_symbolRecurse(f)
+        @_symbolRecurse(S)
         for i=1,#@vars
             var, val = @vars[i], @values[i]
             var\setUpForStore(val)
