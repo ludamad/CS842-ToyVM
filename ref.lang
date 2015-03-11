@@ -1,0 +1,8 @@
+func = (ptr) ->
+    print(ptr)
+    ptr = "sorry I changed you"
+local = new 0
+print "Whut"
+print(local)
+func(local)
+print(local)

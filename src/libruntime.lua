@@ -11,7 +11,9 @@ ffi.cdef [[
     struct LangTypeDescriptors {
         struct GGGGC_Descriptor** boxType;
         struct GGGGC_Descriptor** stringType;
+        struct GGGGC_Descriptor** funcType;
     };
+
     struct LangGlobals {
         void** pstack;
         void*** pstackTop;
@@ -43,6 +45,14 @@ ffi.cdef [[
         LangHeader header;
         LangValue value[1];
     } LangBoxedRef;
+
+    typedef struct {
+        struct GGGGC_Header gcHeader;
+        LangHeader header;
+        void* cFuncPtr;
+        /* Array of LangValue's to use as initial arguments:*/
+        void* capturedVars;
+    ) LangFunction;
 
     void** langCreatePointer();
     void langStringPrint(LangString* str);
