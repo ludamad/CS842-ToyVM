@@ -292,8 +292,9 @@ A.Declare = StatementT {
 
 A.Block = StatementT {
     -- Must be boxed before this block can be entered:
-    List(String).newBoxes
     List(Statement).body
+    -- The scope object associated with this block:
+    Any.scope false
     __tostring: () =>
         __INDENT += 1
         f = '\n'..table.concat(["#{@_indent()}#{v}" for v in *@body], '\n')

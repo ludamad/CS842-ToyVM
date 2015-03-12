@@ -99,7 +99,7 @@ M.makeInit = (T, fields) ->
         else
             append code, "if #{name} ~= false then"
             fields[i]\emitCheck(code, ids[i])
-            append code "end"
+            append code, "end"
             append(code, "self.#{name} = #{name}") 
     append code, "self:init()"
     append code, "return self\nend"

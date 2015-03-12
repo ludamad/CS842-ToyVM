@@ -124,7 +124,7 @@ LangString langStringNew(size_t len) {
     arr = GGC_NEW_DA(char, len+1);
 
     ret = GGC_NEW(LangString);
-    GGC_WP(ret, _header, header);
+    GGC_WD(ret, _header, header);
     GGC_WP(ret, value, arr);
 
     GGC_POP();

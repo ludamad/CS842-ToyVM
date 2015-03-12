@@ -53,7 +53,7 @@ typedef struct {
     unsigned int flags;
 } LangHeader;
 
-#define LANG_TYPE(T) GGC_TYPE(T) GGC_MDATA(LangHeader, _header)
+#define LANG_TYPE(T) GGC_TYPE(T) GGC_MDATA(LangHeader, _header);
 
 /* boxed strings */
 LANG_TYPE(LangNull)

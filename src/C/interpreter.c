@@ -1,5 +1,6 @@
 #include <jit/jit.h>
 
+
 #include "runtime.h"
 
 /****************************************************************************
@@ -47,8 +48,8 @@ enum {
 /* A different view of the instruction stream: */
 #define _sPtr ((short*)iPtr)
 
-#define _header(v) GGC_RP(_P(v), _header)
-#define _flags(v) GGC_RP(_P(v), _header).flags
+#define _header(v) GGC_RD(_P(v), _header)
+#define _flags(v) _header(v).flags
 #define _desc(v) _P(v)->header.descriptor__ptr
 
 #define _tag(v) _V(v).tag
@@ -70,9 +71,9 @@ enum {
 
 /* The LibJIT-created function will set up the stack for us.
  * All we must do then is continue from 'iPtr' to 'end' */
-int eval(int* iPtr, int* end, void** pStack, LangGlobals* globals, LangNullArray metadata) {
+int eval(int* iPtr, int* end, void** pStack, struct LangGlobals* globals, LangNullArray metadata) {
 	value_t result;
-	while (*iPtr != end) {
+	while (iPtr != end) {
 		switch (*iPtr) {
 		case LBC_ADD:
 			_reqInt(_opLeft);
@@ -80,7 +81,7 @@ int eval(int* iPtr, int* end, void** pStack, LangGlobals* globals, LangNullArray
 			result.tag = TYPE_TAG_INT;
 			result.val = _val(_opLeft) + _val(_opRight);
 			_V(_opDest) = result;
-			break
+			break;
 		}
 	}
 	strErr:

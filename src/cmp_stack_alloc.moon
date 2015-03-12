@@ -30,8 +30,14 @@ ast.installOperation {
         f\saveStackLoc()
         @_stackRecurse(f)
         f\loadStackLoc()
+    Block: (f) =>
+        f\saveStackLoc()
+        for var in *@scope.varList
+            var\resolve()
+        @_stackRecurse(f)
+        f\loadStackLoc()
     Function: (f) => 
-        -- Do nothing with the AST (belongs to different context)
+        @body\_stackRecurse(f)
         if @dest
             @dest\resolve(f)
     FuncCall: (f) =>

@@ -39,11 +39,8 @@ StackRef = newtype {
 
 M.Variable = newtype {
     parent: StackRef
-    init: (f, @name) =>
+    init: (@name) =>
         StackRef.init(@)
-        -- Resolve variables immediately.
-        -- We will reclaim their stack space if their scope is popped.
-        @resolve(f)
     link: (astNode) =>
         astNode.dest or= StackRef()
         stackRef = astNode.dest
@@ -71,8 +68,10 @@ M.Constant = newtype {
 M.Scope = newtype {
     init: (@parentScope = false) =>
         @variables = {}
+        @varList = {}
     declare: (var) =>
         @variables[var.name] = var
+        append @varList, var
     get: (name) =>
         scope = @
         while scope ~= false
@@ -80,8 +79,8 @@ M.Scope = newtype {
                 return scope.variables[name], scope
             scope = scope.parentScope
         return nil, scope
-    ensureAddressable: (block, name) => 
-        var, scope = @get(name)
+--    ensureAddressable: (block, name) => 
+--        var, scope = @get(name)
 }
 
 --------------------------------------------------------------------------------
@@ -95,8 +94,15 @@ ast.installOperation {
         @_symbolRecurse(S)
     Expr: (S) =>
         @_symbolRecurse(S)
-    Function: () =>
-        -- Do nothing
+    -- Recursively descend into child functions:
+    Function: (S) =>
+        for param in *@paramNames
+            S\declare(M.Variable param)
+        @body\_symbolRecurse(S)
+    Block: (S) =>
+        -- 'Push' a new scope:
+        @scope = M.Scope(S)
+        @_symbolRecurse(S)
     Operator: (S) =>
         @_symbolRecurse(S)
         @dest = StackRef()
@@ -112,9 +118,10 @@ ast.installOperation {
             @dest or= StackRef() -- Our return value requires one, as well.
     -- Assignables:
     RefStore: (S) =>
+        print "Storing #{@name}"
         sym = S\get(@name)
         if sym == nil
-            sym = M.Variable(f, @name)
+            sym = M.Variable(@name)
             S\declare(sym)
         @symbol = sym
     -- Expressions:

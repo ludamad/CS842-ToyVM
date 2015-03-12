@@ -143,10 +143,12 @@ ast.installOperation {
             var\generateStore(f, val)
 }
 
-M.compileFuncBody = (ljContext, paramNames, ast, scope) ->
+M.compileFuncBody = (ljContext, paramNames, ast, scope, skip = 0) ->
     fb = FunctionBuilder(ljContext, paramNames, scope)
-    ast\symbolResolve(fb)
-    ast\stackResolve(fb)
+    if skip < 1
+        ast\symbolResolve(scope)
+    if skip < 2
+        ast\stackResolve(fb)
     ast\compile(fb)
     print fb\smartDump()
     fb\compile()
