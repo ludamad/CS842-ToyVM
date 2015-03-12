@@ -33,7 +33,8 @@ ast.installOperation {
     Block: (f) =>
         f\saveStackLoc()
         for var in *@scope.varList
-            var\resolve()
+            print "Resolving #{var.name}"
+            var\resolve(f)
         @_stackRecurse(f)
         f\loadStackLoc()
     Function: (f) => 

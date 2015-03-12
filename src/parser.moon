@@ -185,7 +185,7 @@ grammar = MatchGrammar extend indentG, {
         sym("for") * gref.Assignable * sym("=") * gref.ExprList * gref.Body / ast.ForNum
     }
     If: sym("if") * gref.Expr * gref.Body / ast.If
-    Assign: (gref._ValOper*MatchExact("=")  + symC("=")) * gref.ExprList
+    Assign: (symC("")+symC("ref")) * (gref._ValOper*MatchExact("=")  + symC("=")) * gref.ExprList
     AssignStmnt: gref.AssignableList * gref.Assign / ast.Assign
     Declare: _Name * gref.AssignableList * (OneOrLess gref.Assign) / ast.Declare
 

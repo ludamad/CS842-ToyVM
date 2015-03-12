@@ -150,7 +150,6 @@ M.compileFuncBody = (ljContext, paramNames, ast, scope, skip = 0) ->
     if skip < 2
         ast\stackResolve(fb)
     ast\compile(fb)
-    print fb\smartDump()
     fb\compile()
     return fb
 

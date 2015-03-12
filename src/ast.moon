@@ -158,6 +158,7 @@ A.Function = ExprT {
 
 A.FuncBody = StatementT {
     Statement.block
+    List(String).captureVars "{}"
     __tostring: () =>
         __INDENT += 1
         f = table.concat(["#{@_indent()}#{v}" for v in *@block.body], '\n')

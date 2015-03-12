@@ -23,9 +23,13 @@ cFaintW = (s) -> col.WHITE(s, col.FAINT)
 -- Offset is 0 or 1:
 StackRef = newtype {
     init: (@index = false) =>
+        @varLink = false
     resolve: (f) =>
         if not @index
-            @index = f\pushStackLoc()
+            if @varLink
+                @index = assert(@varLink.index, "link should have index!!")
+            else
+                @index = f\pushStackLoc()
     -- If we load to a 'value', we can save always storing if in a safe point
     store: (f, val) => f\stackStore @index, val
     load: (f) => f\stackLoad @index
@@ -39,13 +43,12 @@ StackRef = newtype {
 
 M.Variable = newtype {
     parent: StackRef
-    init: (@name) =>
+    init: (@name, @boxed = false) =>
         StackRef.init(@)
     link: (astNode) =>
         astNode.dest or= StackRef()
         stackRef = astNode.dest
-        assert(stackRef.index == false)
-        stackRef.index = @index
+        stackRef.varLink = @
     __tostring: () => col.WHITE("$#{@name}", col.FAINT) .. StackRef.__tostring(@)
 }
 
@@ -66,22 +69,34 @@ M.Constant = newtype {
 -- The scope object, arranged in a stack.
 --------------------------------------------------------------------------------
 M.Scope = newtype {
-    init: (@parentScope = false) =>
+    -- If the 'get' in the parent scope crosses a function barrier, we may need
+    -- to generate a capture.
+    -- @funcRoot == false implies global (provisionally, constant) scope.
+    init: (@parentScope = false, @funcRoot = false) =>
+        if not @funcRoot and @parentScope
+            @funcRoot = assert(@parentScope.funcRoot, "Should not inherit global scope parent!")
         @variables = {}
         @varList = {}
     declare: (var) =>
         @variables[var.name] = var
         append @varList, var
     get: (name) =>
+        assert @funcRoot, "Should not do get's on bare global scope."
         scope = @
         while scope ~= false
             if scope.variables[name] ~= nil
-                return scope.variables[name], scope
+                isGlobalScope = not scope.funcRoot
+                crossedFunc = (isGlobalScope or scope.funcRoot == @funcRoot)
+                return scope.variables[name], crossedFunc, scope
             scope = scope.parentScope
-        return nil, scope
+        return nil, false, scope
 --    ensureAddressable: (block, name) => 
 --        var, scope = @get(name)
 }
+
+ast.FuncBody._sym__makeScope = (S) =>
+    @block.scope = M.Scope(S, @)
+    return @block.scope
 
 --------------------------------------------------------------------------------
 -- First pass of compilation:
@@ -96,13 +111,19 @@ ast.installOperation {
         @_symbolRecurse(S)
     -- Recursively descend into child functions:
     Function: (S) =>
+        -- Override the func-body making a scope:
+        scope = @body\_sym__makeScope(S)
         for param in *@paramNames
-            S\declare(M.Variable param)
-        @body\_symbolRecurse(S)
+            scope\declare(M.Variable param)
+        @body.block\_symbolRecurse(scope)
+    FuncBody: (S) =>
+        -- Override the block making a scope:
+        @_sym__makeScope(S)
+        @block\_symbolRecurse()
     Block: (S) =>
         -- 'Push' a new scope:
         @scope = M.Scope(S)
-        @_symbolRecurse(S)
+        @_symbolRecurse(@scope)
     Operator: (S) =>
         @_symbolRecurse(S)
         @dest = StackRef()
@@ -119,7 +140,10 @@ ast.installOperation {
     -- Assignables:
     RefStore: (S) =>
         print "Storing #{@name}"
-        sym = S\get(@name)
+        sym, crossedFunc = S\get(@name)
+        -- If something crosses a function, we must declare it locally
+        -- later, and add it as a boxed parameter.
+        S.funcRoot.captureVars = 
         if sym == nil
             sym = M.Variable(@name)
             S\declare(sym)

@@ -20,7 +20,6 @@ grayPrint  = (s) -> print ansiCol.WHITE(s,ansiCol.FAINT)
 compileString = (str) ->
     ast = parse(str)
     grayPrint '-- Bare Parse Tree ---------------------------------------------------------------------------'
-    print(ast)
     fb = compileFuncBody(ljContext, {}, ast, globalScope)
     cFunc = fb\toCFunction()
     grayPrint '-- Stack Allocated Tree ----------------------------------------------------------------------'
