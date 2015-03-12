@@ -51,7 +51,7 @@ ast.installOperation {
         ptr = f.ljContext\getStringPtr(@value)
         return f\loadRelative f\longConst(ptr), 0, lj.ulong
     Function: (f) =>
-        @compiledFunc = M.compileFuncBody f.ljContext, @paramNames, @body, f.scope
+        @compiledFunc = M.compileFuncBody f.ljContext, @paramNames, @body, f.scope, 2
         return f\longConst  @compiledFunc\toCFunction()
     Operator: (f) =>
         @_compileRecurse(f)
