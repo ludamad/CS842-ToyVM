@@ -28,7 +28,7 @@ enum {
      * All operations thus occur on a parent pointer, which houses the 
      * location of the object.
      *
-     * This mimicks how boxes are used in the language. */
+     * This mimics how boxes are used in the language. */
     LANG_FLAG_MUTABLE = 1 << 1,
     /* Has this object been conceptually 'freed'? 
      * This provides an optimization for cases where the last reference to this value
@@ -39,7 +39,11 @@ enum {
      * This is necessary knowledge for fast inequality checks for example
      * with strings, and for properly removing the strings from the 
      * intern pool. */
-    LANG_INTERNED = 1 << 3
+    LANG_INTERNED = 1 << 3,
+    /* For fast string checks: */
+    LANG_IS_STRING = 1 << 4,
+    /* For fast box checks: */
+    LANG_IS_BOX = 1 << 5
 };
 
 typedef struct {
@@ -49,15 +53,14 @@ typedef struct {
     unsigned int flags;
 } LangHeader;
 
+#define LANG_TYPE(T) GGC_TYPE(T) GGC_MDATA(LangHeader, _header)
 
 /* boxed strings */
-GGC_TYPE(LangNull)
-    GGC_MDATA(LangHeader, header);
+LANG_TYPE(LangNull)
 GGC_END_TYPE(LangNull, GGC_NO_PTRS);
 
 /* boxed strings */
-GGC_TYPE(LangString)
-    GGC_MDATA(LangHeader, header);
+LANG_TYPE(LangString)
     GGC_MPTR(GGC_char_Array, value);
 GGC_END_TYPE(LangString,
     GGC_PTR(LangString, value)
@@ -72,8 +75,7 @@ GGC_END_TYPE(LangShape,
     GGC_PTR(LangShape, members)
     );
 
-GGC_TYPE(LangObject)
-    GGC_MDATA(LangHeader, header);
+LANG_TYPE(LangObject)
     GGC_MPTR(LangShape, shape);
     GGC_MPTR(LangNullArray, members);
 GGC_END_TYPE(LangObject,
@@ -88,8 +90,7 @@ GGC_MAP_DECL(LangShapeMap, LangString, LangShape);
 GGC_UNIT(size_t)
 GGC_MAP_DECL(LangIndexMap, LangString, GGC_size_t_Unit);
 
-GGC_TYPE(LangBoxedRef)
-    GGC_MDATA(LangHeader, header);
+LANG_TYPE(LangBoxedRef)
     GGC_MPTR(void*, langPtr);
 GGC_END_TYPE(LangBoxedRef,
     GGC_PTR(LangBoxedRef, langPtr)
@@ -103,19 +104,46 @@ GGC_END_TYPE(LangInlineCache,
     GGC_PTR(LangInlineCache, cachedShape)
     GGC_PTR(LangInlineCache, cachedMember)
 );
+
 /****************************************************************************
  * Language closures and 'native' functions:
  ****************************************************************************/
 
-GGC_TYPE(LangFunction)
-    GGC_MDATA(LangHeader, header);
+LANG_TYPE(LangFunction)
     /* Not allocated by GGGGC: */
     GGC_MPTR(void*, cFuncPtr);
+    /* TODO: This should have a hook which frees everything about a function*/
+    GGC_MPTR(LangNullArray, functionMetaData);
     /**/
     GGC_MPTR(LangNullArray, capturedVars);
 GGC_END_TYPE(LangFunction,
     GGC_PTR(LangFunction, capturedVars)
 );
 
+/****************************************************************************
+ * Initialized VM data:
+ ****************************************************************************/
+
+struct LangTypeDescriptors {
+    struct GGGGC_Descriptor** boxType;
+    struct GGGGC_Descriptor** stringType;
+};
+struct LangGlobals {
+    void** pstack;
+    void*** pstackTop;
+    void* emptyShape;
+    void* defaultValue;
+    struct LangTypeDescriptors types;
+};
+
+/****************************************************************************
+ * Utilities:
+ ****************************************************************************/
+
+#define _likely(x)      __builtin_expect(!!(x), 1)
+#define _unlikely(x)    __builtin_expect(!!(x), 0)
+
+#define TYPE_TAG_BOOL 1
+#define TYPE_TAG_INT 3
 
 #endif /*RUNTIME_H*/

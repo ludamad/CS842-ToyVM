@@ -1,11 +1,11 @@
 CC=gcc
 ECFLAGS=-O3 -g
-CFLAGS=-D_XOPEN_SOURCE=600 -I. $(ECFLAGS) -fPIC
+CFLAGS=-D_XOPEN_SOURCE=600 -I../libjit/include -I. $(ECFLAGS) -fPIC
 AR=ar
 ARFLAGS=rc
 RANLIB=ranlib
 
-OBJS=allocate.o collect.o globals.o roots.o threads.o ../runtime.o
+OBJS=allocate.o collect.o globals.o roots.o threads.o ../runtime.o ../interpreter.o
 
 all: libggggc.a libggggc.so
 

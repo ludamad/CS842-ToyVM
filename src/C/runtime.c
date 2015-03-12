@@ -74,18 +74,6 @@ void** langCreatePointer() {
 GGC_MAP_DEFN(LangShapeMap, LangString, LangShape, stringHash, stringCmp);
 GGC_MAP_DEFN(LangIndexMap, LangString, GGC_size_t_Unit, stringHash, stringCmp);
 
-struct LangTypeDescriptors {
-    struct GGGGC_Descriptor** boxType;
-    struct GGGGC_Descriptor** stringType;
-};
-struct LangGlobals {
-    void** pstack;
-    void*** pstackTop;
-    void* emptyShape;
-    void* defaultValue;
-    struct LangTypeDescriptors types;
-};
-
 void* langDefaultValue;
 
 LangString langStringCopy(const char* value, size_t len);
@@ -129,12 +117,14 @@ void langGlobalsInit(struct LangGlobals* globals, int pstackSize) {
 LangString langStringNew(size_t len) {
     LangString ret = NULL;
     GGC_char_Array arr = NULL;
+    LangHeader header = {0, LANG_IS_STRING};
 
     GGC_PUSH_2(ret, arr);
 
     arr = GGC_NEW_DA(char, len+1);
 
     ret = GGC_NEW(LangString);
+    GGC_WP(ret, _header, header);
     GGC_WP(ret, value, arr);
 
     GGC_POP();
