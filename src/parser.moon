@@ -161,11 +161,10 @@ grammar = MatchGrammar extend indentG, {
     gref.SourceCode -- Initial Rule
     SourceCode: Union {
         -- it could be a whole file
-        (OneOrLess Shebang) * gref.FuncBody
+        (OneOrLess Shebang) * gref.Body / (body) -> ast.FuncBody({}, body)
         -- or this could be a single expression, such as in a REPL...
 --        gref.Expr 
     }
-    FuncBody: (gref.Body /  ast.FuncBody)
   
     Line: gref.CheckIndent * gref.Statement * ZeroOrMore(lineEnding) + OneOrMore(lineEnding)
     Block: CaptureTable(gref.Line * ZeroOrMore(gref.Line))
@@ -185,12 +184,15 @@ grammar = MatchGrammar extend indentG, {
         sym("for") * gref.Assignable * sym("=") * gref.ExprList * gref.Body / ast.ForNum
     }
     If: sym("if") * gref.Expr * gref.Body / ast.If
-    Assign: (symC("")+symC("ref")) * (gref._ValOper*MatchExact("=")  + symC("=")) * gref.ExprList
+    Assign: (gref._ValOper*MatchExact("=")  + symC("=")) * gref.ExprList
     AssignStmnt: gref.AssignableList * gref.Assign / ast.Assign
     Declare: _Name * gref.AssignableList * (OneOrLess gref.Assign) / ast.Declare
 
     Assignable: Union {
         Name/ast.RefStore
+        sym("&")* Name/(name) -> 
+            store = ast.RefStore(name)
+            store.isPtrSet = true
         sym("*") * gref.Expr / ast.BoxStore
     }
     AssignableList: CaptureTable(gref.Assignable * (ZeroOrMore sym(",")*gref.Assignable))
@@ -205,7 +207,7 @@ grammar = MatchGrammar extend indentG, {
         sym('(')* gref.FuncParams*sym(')') * sym("->")
         gref.FuncParams * sym("->") 
     }
-    Function: gref.FuncHead * gref.FuncBody / ast.Function
+    Function: gref.FuncHead * gref.Body / ast.FuncBody
     _ValOper: Union {Op1, Op2, Op3, Op4}
     Operator: Union {
         opWrap LogicOp

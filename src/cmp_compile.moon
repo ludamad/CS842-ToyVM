@@ -50,8 +50,8 @@ ast.installOperation {
     StringLit: (f) =>
         ptr = f.ljContext\getStringPtr(@value)
         return f\loadRelative f\longConst(ptr), 0, lj.ulong
-    Function: (f) =>
-        @compiledFunc = M.compileFuncBody f.ljContext, @paramNames, @body, f.scope, 2
+    FuncBody: (f) =>
+        @compiledFunc = M.compileFuncBody f.ljContext, @paramNames, @, f.scope, 2
         return f\longConst  @compiledFunc\toCFunction()
     Operator: (f) =>
         @_compileRecurse(f)
@@ -95,10 +95,16 @@ ast.installOperation {
     methodName: "compile"
     recurseName: "_compileRecurse"
     FuncBody: (f) =>
-        print("Funcbody")
-        f\compileFuncPrelude()
-        @_compileRecurse(f)
-        f\compileFuncReturn({})
+        -- Are we the function being compiled?
+        if @functionBuilder
+            print("Funcbody")
+            f\compileFuncPrelude()
+            @_compileRecurse(f)
+            f\compileFuncReturn({})
+       else -- No:
+            @compiledVal = @compileVal(f)
+            if @dest
+                @dest\store(f, @compiledVal)
     If: (f) =>
         isTrue = f\truthCheck(@condition\compileVal(f))
         @labelEnd = lj.Label()
@@ -144,9 +150,11 @@ ast.installOperation {
 }
 
 M.compileFuncBody = (ljContext, paramNames, ast, scope, skip = 0) ->
-    fb = FunctionBuilder(ljContext, ast, paramNames, scope)
+    fb = FunctionBuilder(ljContext, ast, paramNames)
+    ast.functionBuilder = fb
     if skip < 1
-        ast\symbolResolve(fb.scope)
+        ast\symbolResolve(scope)
+    fb.scope = ast.block.scope
     if skip < 2
         ast\stackResolve(fb)
     ast\compile(fb)

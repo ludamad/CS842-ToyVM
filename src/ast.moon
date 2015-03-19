@@ -140,9 +140,11 @@ Statement = checkerType {
 -- Top AST nodes for function definition:
 --------------------------------------------------------------------------------
 
-A.Function = ExprT {
+A.FuncBody = ExprT {
     List(String).paramNames
-    Statement.body
+    Statement.block
+    List(String).captureVars "{}"
+    Any.functionBuilder false
     Any.dest false
     Any.name false
     Any.compiledVal false
@@ -151,19 +153,9 @@ A.Function = ExprT {
     __tostring: () =>
         code = {'('..table.concat(@paramNames, ", ")..")#{@_d()} ->"}
         __INDENT += 1
-        append code, tostring(@body)
+        append code, table.concat(["#{@_indent()}#{v}" for v in *@block.body], '\n')
         __INDENT -= 1
         return table.concat(code,'\n')
-}
-
-A.FuncBody = StatementT {
-    Statement.block
-    List(String).captureVars "{}"
-    __tostring: () =>
-        __INDENT += 1
-        f = table.concat(["#{@_indent()}#{v}" for v in *@block.body], '\n')
-        __INDENT -= 1
-        return f
 }
 
 --------------------------------------------------------------------------------
@@ -174,6 +166,7 @@ A.FuncBody = StatementT {
 A.RefStore = AssignableT {
     String.name
     Any.symbol false
+    Bool.isPtrSet false
     toExpr: () =>
         return A.RefLoad @name
     setUpForStore: (node) =>

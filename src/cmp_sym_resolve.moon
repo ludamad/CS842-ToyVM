@@ -48,6 +48,7 @@ M.Variable = newtype {
     link: (astNode) =>
         astNode.dest or= StackRef()
         stackRef = astNode.dest
+        assert not stackRef.varLink
         stackRef.varLink = @
     __tostring: () => col.WHITE("$#{@name}", col.FAINT) .. StackRef.__tostring(@)
 }
@@ -95,10 +96,6 @@ M.Scope = newtype {
 --        var, scope = @get(name)
 }
 
-ast.astTypes.FuncBody._sym__makeScope = (S) =>
-    @block.scope = M.Scope(S, @)
-    return @block.scope
-
 --------------------------------------------------------------------------------
 -- First pass of compilation:
 --  - Resolve symbols
@@ -111,16 +108,13 @@ ast.installOperation {
     Expr: (S) =>
         @_symbolRecurse(S)
     -- Recursively descend into child functions:
-    Function: (S) =>
-        -- Override the func-body making a scope:
-        scope = @body\_sym__makeScope(S)
-        for param in *@paramNames
-            scope\declare(M.Variable param)
-        @body.block\_symbolRecurse(scope)
     FuncBody: (S) =>
         -- Override the block making a scope:
-        @_sym__makeScope(S)
-        @block\_symbolRecurse(S)
+        newS = M.Scope(S, @)
+        for param in *@paramNames
+            newS\declare(M.Variable param)
+        @block.scope = newS
+        @block\_symbolRecurse(newS)
     Block: (S) =>
         -- 'Push' a new scope:
         @scope = M.Scope(S)
@@ -140,7 +134,6 @@ ast.installOperation {
             @dest or= StackRef() -- Our return value requires one, as well.
     -- Assignables:
     RefStore: (S) =>
-        print "Storing #{@name}"
         sym, crossedFunc = S\get(@name)
         -- If something crosses a function, we must declare it locally
         -- later, and add it as a boxed parameter.
