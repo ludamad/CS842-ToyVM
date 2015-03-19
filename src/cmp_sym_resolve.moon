@@ -77,6 +77,7 @@ M.Scope = newtype {
             @funcRoot = assert(@parentScope.funcRoot, "Should not inherit global scope parent!")
         @variables = {}
         @varList = {}
+        assert not @parentScope or @funcRoot
     declare: (var) =>
         @variables[var.name] = var
         append @varList, var
@@ -94,7 +95,7 @@ M.Scope = newtype {
 --        var, scope = @get(name)
 }
 
-ast.FuncBody._sym__makeScope = (S) =>
+ast.astTypes.FuncBody._sym__makeScope = (S) =>
     @block.scope = M.Scope(S, @)
     return @block.scope
 
@@ -119,7 +120,7 @@ ast.installOperation {
     FuncBody: (S) =>
         -- Override the block making a scope:
         @_sym__makeScope(S)
-        @block\_symbolRecurse()
+        @block\_symbolRecurse(S)
     Block: (S) =>
         -- 'Push' a new scope:
         @scope = M.Scope(S)
@@ -143,7 +144,8 @@ ast.installOperation {
         sym, crossedFunc = S\get(@name)
         -- If something crosses a function, we must declare it locally
         -- later, and add it as a boxed parameter.
-        S.funcRoot.captureVars = 
+        if crossedFunc
+            append(S.funcRoot.captureVars, sym)
         if sym == nil
             sym = M.Variable(@name)
             S\declare(sym)

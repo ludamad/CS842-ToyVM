@@ -144,9 +144,9 @@ ast.installOperation {
 }
 
 M.compileFuncBody = (ljContext, paramNames, ast, scope, skip = 0) ->
-    fb = FunctionBuilder(ljContext, paramNames, scope)
+    fb = FunctionBuilder(ljContext, ast, paramNames, scope)
     if skip < 1
-        ast\symbolResolve(scope)
+        ast\symbolResolve(fb.scope)
     if skip < 2
         ast\stackResolve(fb)
     ast\compile(fb)

@@ -51,11 +51,12 @@ LangValue = newtype {
 
 FunctionBuilder = newtype {
     parent: lj.Function
-    init: (@ljContext, paramNames, globalScope) =>
+    init: (@ljContext, @bodyAst, paramNames, parentScope) =>
+        assert @bodyAst, "Function builder requires AST as parameter"
         lj.Function.init(@, @ljContext, lj.uint, {lj.uint})
         level = @getMaxOptimizationLevel()
         @setOptimizationLevel(level)
-        @scope = Scope(globalScope)
+        @scope = Scope(parentScope, @bodyAst)
         @stackSymInit(paramNames)
         @constantPtrs = {}
 
