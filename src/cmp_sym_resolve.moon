@@ -92,8 +92,6 @@ M.Scope = newtype {
                 return scope.variables[name], crossedFunc, scope
             scope = scope.parentScope
         return nil, false, scope
---    ensureAddressable: (block, name) => 
---        var, scope = @get(name)
 }
 
 --------------------------------------------------------------------------------

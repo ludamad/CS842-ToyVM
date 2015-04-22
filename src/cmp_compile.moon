@@ -99,7 +99,7 @@ ast.installOperation {
         if @functionBuilder
             print("Funcbody")
             f\compileFuncPrelude()
-            @_compileRecurse(f)
+            @block\compile(f)
             f\compileFuncReturn({})
        else -- No:
             @compiledVal = @compileVal(f)
@@ -150,7 +150,7 @@ ast.installOperation {
 }
 
 M.compileFuncBody = (ljContext, paramNames, ast, scope, skip = 0) ->
-    fb = FunctionBuilder(ljContext, ast, paramNames)
+    fb = FunctionBuilder(ljContext, ast, paramNames, scope)
     ast.functionBuilder = fb
     if skip < 1
         ast\symbolResolve(scope)

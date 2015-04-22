@@ -51,24 +51,27 @@ LangValue = newtype {
 
 FunctionBuilder = newtype {
     parent: lj.Function
-    init: (@ljContext, @bodyAst, paramNames) =>
+    init: (@ljContext, @bodyAst, @scope, @paramNames = {}) =>
         assert @bodyAst, "Function builder requires AST as parameter"
         lj.Function.init(@, @ljContext, lj.uint, {lj.uint})
         level = @getMaxOptimizationLevel()
+        pretty @scope
         @setOptimizationLevel(level)
-        @stackSymInit(paramNames)
+
         @constantPtrs = {}
+
+        @stackLocHistory = {}
+        @stackLoc = 0
+        @stackSymInit(@paramNames, @scope)
 
     ------------------------------------------------------------------------------
     -- Stack and symbol resolving:
     ------------------------------------------------------------------------------
-    stackSymInit: (@paramNames) =>
-        @stackLocHistory = {}
-        @stackLoc = 0
-        @stackPtrsUsed = @stackLoc
+    stackSymInit: (@paramNames, @scope) =>
         for i=1,#@paramNames
             var = Variable(@, @paramNames[i])
             @scope\declare(var)
+        @stackPtrsUsed = @stackLoc
 
     popStackVars: (n) =>
         for i=1,n
