@@ -169,11 +169,11 @@ grammar = MatchGrammar extend indentG, {
     Line: gref.CheckIndent * gref.Statement * ZeroOrMore(lineEnding) + OneOrMore(lineEnding)
     Block: CaptureTable(gref.Line * ZeroOrMore(gref.Line))
     Statement: Union {
-        gref.FuncCall    / (@isExpression=false)=>@
         gref.Loop
         gref.If
         gref.AssignStmnt
         gref.Declare
+        gref.FuncCall    / (@isExpression=false)=>@
         gref.FuncCallS   / (@isExpression=false)=>@
     }
     InBlock: gref.Advance * gref.Block * gref.PopIndent
@@ -189,11 +189,11 @@ grammar = MatchGrammar extend indentG, {
     Declare: _Name * gref.AssignableList * (OneOrLess gref.Assign) / ast.Declare
 
     Assignable: Union {
+        sym("*") * gref.Expr / ast.BoxStore
         Name/ast.RefStore
         sym("&")* Name/(name) -> 
             store = ast.RefStore(name)
             store.isPtrSet = true
-        sym("*") * gref.Expr / ast.BoxStore
     }
     AssignableList: CaptureTable(gref.Assignable * (ZeroOrMore sym(",")*gref.Assignable))
 
@@ -222,20 +222,21 @@ grammar = MatchGrammar extend indentG, {
         Num
         SingleQuotedString
         DoubleQuotedString
-        sym("&") * gref.Assignable / ast.BoxGet
-        sym("*") * gref.Expr / ast.BoxLoad
         gref.Object/ast.Object
     }
     Expr: Union {
+        sym("&") * gref.Assignable / ast.BoxGet
+        sym("*") * gref.Expr / ast.BoxLoad
         gref.FuncCall
         gref.Operator
         gref._Expr
         gref.Function
+        sym('(')* gref.Expr * sym(")")
     }
     -- Note, FuncCall is both an expression and a statement
     FuncCall: gref._Expr * sym("(") * gref.ExprList * sym(")") /ast.FuncCall
     -- This form only allowed as a statement:
-    FuncCallS: gref._Expr * gref.ExprListS /ast.FuncCall
+    FuncCallS: gref._Expr * gref.ExprListS /ast.FuncCall * OneOrMore(lineEnding)
 }
 
 parse = (codeString) -> 

@@ -160,7 +160,7 @@ FunctionBuilder = newtype {
     ------------------------------------------------------------------------------
     -- Branching and truth checking convenience functions:
     ------------------------------------------------------------------------------
-    truthCheck: (val) ->
+    truthCheck: (val) =>
         -- AND against a string of almost all 1
         -- since 000..0 and 000..1 are the only false values.
         TRUTH_CHECKER = @longConst(-2)

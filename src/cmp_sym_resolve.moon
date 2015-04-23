@@ -134,7 +134,8 @@ ast.installOperation {
         -- If something crosses a function, we must declare it locally
         -- later, and add it as a boxed parameter.
         if crossedFunc
-            append(S.funcRoot.captureVars, sym)
+            print @name
+            -- append(S.funcRoot.captureVars, sym)
         if sym == nil
             sym = M.Variable(@name)
             S\declare(sym)

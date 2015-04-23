@@ -1,8 +1,7 @@
-func = (ptr) ->
-    print(ptr)
-    ptr = "sorry I changed you"
-local = new 0
-print "Whut"
-print(local)
-func(local)
-print(local)
+
+valPtr = new 0
+print("Before Loop:", *valPtr, valPtr)
+while (*valPtr) < 10
+    print("Before:", *valPtr, valPtr)
+    *valPtr += 1
+    print("After:", *valPtr, valPtr)
