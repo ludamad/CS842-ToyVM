@@ -1,5 +1,6 @@
 
 f = () ->
+    print("YO")
     print("HI")
     return 2
 

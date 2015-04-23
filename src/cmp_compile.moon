@@ -153,6 +153,10 @@ ast.installOperation {
         f\branchIf(isTrue, @labelLoopStart)
     Block: (f) =>
         @_compileRecurse(f)
+    Return: (f) =>
+        -- @_compileRecurse(f)
+        f\compileFuncReturn({@value})
+
     FuncCall: (f) =>
         @_compileRecurse(f)
         fVal = loadE(f, @func)

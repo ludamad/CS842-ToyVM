@@ -200,6 +200,9 @@ FunctionBuilder = newtype {
         retSpace = @longConst numRet * VAL_SIZE
 
         nullVal = @longConst(0)
+        for i=0,numRet-1
+            @stackStore(i, values[i+1]\compileVal(@))
+
         @storeRelative(@stackTopPtr, 0, @add(@stackFrameVal, retSpace))
         for i=numRet,@stackPtrsUsed-1
             @stackStore(i, nullVal)
