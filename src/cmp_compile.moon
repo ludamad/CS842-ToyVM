@@ -120,34 +120,17 @@ ast.installOperation {
     ObjLoad: (f) =>
         @_compileRecurse(f)
         kVal = @key.compiledVal
-
-              -- Handle object index retrieval & inline caching:
-        kPtr = f.ljContext\getStringPtr(k)
-        kVal = f\loadRelative f\longConst(kPtr), 0, lj.ulong
-        params = {f\longConst(0), @dest\load(f), kVal, vVal, f\longConst(0)}
-        return f\call(runtime.objectSet, 'objectSet', params)
+        return f\call runtime.objectGet, 'objectGet', {f\longConst(0), @dest\load(f), kVal, f\longConst(0)}
 
     Object: (f) =>
         obj = f\call(runtime.objectNew, 'objectNew', {f\longConst runtime.getGlobals()})
         @dest\store(f, obj) -- Store in case object moves during initialization
-        CREATE_MEMBERS = f\intConst(1)
         for {k,v} in *@value
-            -- Handle object index retrieval & inline caching:
             kPtr = f.ljContext\getStringPtr(k)
             kVal = f\loadRelative f\longConst(kPtr), 0, lj.ulong
-            pstackVal = f\loadRelative(f\longConst(runtime.getPStack()), 0, lj.ulong) 
-            params = {f\longConst(0), @dest\load(f), kVal, f\longConst(0), CREATE_MEMBERS}
-            -- indexVal = f\call(runtime.objectGet, 'objectGet', params)
-            v\compile(f)
-            vVal = v.compiledVal
-            params = {f\longConst(0), @dest\load(f), kVal, vVal, f\longConst(0)}
-            f\call(runtime.objectSet, 'objectSet', params)
 
-            -- Handle object index setting:
-            -- arrayObj = f\loadRelative @dest\load(f), ffi.sizeof("LangObjectHeader"), lj.ulong
-            -- array = f\addRelative(arrayObj, ffi.sizeof("LangObjectHeader"))
-            -- f\storeElem array, indexVal, vVal
-            -- f\storeRelative array, 0, vVal
+            v\compile(f)
+            f\call runtime.objectSet, 'objectSet', {f\longConst(0), @dest\load(f), kVal, v.compiledVal, f\longConst(0)}
 
         return @dest\load(f)
 }
