@@ -62,8 +62,11 @@ ffi.cdef [[
         void* capturedVars;
     } LangFunction;
 
+    void langObjectSet(void **pstack, void* object, void* member, void* value,  void* cache);
+    void* langObjectGet(void **pstack, void* object, void* member, void* cache);
     void** langCreatePointer();
     void** langObjectNew(struct LangGlobals* globals);
+    size_t langObjectGetMemberIndex(void **pstack, void* object, void* member, void* cache, int create);
     size_t langObjectGetMemberIndex(void **pstack, void* object, void* member, void* cache, int create);
     void langStringPrint(LangString* str);
     void langGlobalsInit(struct LangGlobals* globals, int pstackSize);

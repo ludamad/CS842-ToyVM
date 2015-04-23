@@ -194,17 +194,16 @@ A.BoxStore= AssignableT {
 }
 
 A.ObjStore = AssignableT {
-    Expr.ptr
+    Expr.obj
+    Expr.key
     setUpForStore: (node) =>
     generateStore: (fb, node) =>
-        assert @ptr.compiledVal, "Box value should be compiled!"
-        assert node.compiledVal, "Node value should be compiled!"
-        fb\boxStore(@ptr.compiledVal, node.compiledVal)
+        error "UNIMPLEMENTED"
 
     toExpr: () =>
-        return A.BoxLoad @ptr
+        return A.ObjLoad @obj, @key
     __tostring: () =>
-        return "*#{@ptr}"
+        return "#{@obj}[#{@key}]"
 }
 
 --------------------------------------------------------------------------------
@@ -220,6 +219,15 @@ A.RefLoad = ExprT {
         if @symbol
             return tostring(@symbol)
         return "$#{@name}"
+}
+
+A.ObjLoad = ExprT {
+    Expr.obj
+    Expr.key
+    Any.dest false
+    Any.compiledVal false
+    __tostring: () =>
+        return "#{@obj}[#{@key}]"
 }
 
 A.Operator = ExprT {
@@ -251,6 +259,7 @@ A.StringLit = ExprT {
 A.Object = ExprT {
     Any.value
     Any.dest false
+    Any.tempDest false
     Any.compiledVal false
     __tostring: () =>
         tmp = ["#{l[1]}: #{l[2]}" for l in *@value]

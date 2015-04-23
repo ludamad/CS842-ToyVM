@@ -109,10 +109,16 @@ gcMallocDataArray = lj.NativeFunction(gc.ggggc_mallocDataArray, lj.ptr, {})
 
 stringConcat = lj.NativeFunction(librun.langStringConcat, lj.ptr, {lj.ptr, lj.ptr})
 objectNew = lj.NativeFunction(librun.langObjectNew, lj.ptr, {lj.ptr})
-objectGet = lj.NativeFunction(librun.langObjectGetMemberIndex, lj.long, {lj.ptr, lj.ptr, lj.ptr, lj.ptr, lj.int})
+objectGetIndex = lj.NativeFunction(librun.langObjectGetMemberIndex, lj.ulong, {lj.ptr, lj.ptr, lj.ptr, lj.ptr, lj.uint})
+objectGet = lj.NativeFunction(librun.langObjectGet, lj.ulong, {lj.ptr, lj.ptr, lj.ptr, lj.ptr})
+objectSet = lj.NativeFunction(librun.langObjectSet, lj.ulong, {lj.ptr, lj.ptr, lj.ptr, lj.ptr, lj.ptr})
 
 getContext = () -> assert(_context)
 getGlobals = () -> getContext().globals
-getPStack = () -> getGlobals()[0].pstackTop[0]
-return {:makeGlobalScope, :gcMalloc, :gcMallocPointerArray, :gcMallocDataArray, :stringConcat, :objectNew, :objectGet, :getContext, :getGlobals, :getPStack}
+getPStack = () -> getGlobals()[0].pstackTop
+
+return {
+  :makeGlobalScope, :gcMalloc, :gcMallocPointerArray, :gcMallocDataArray, :stringConcat, :objectNew, 
+  :objectGet, :objectSet, :objectGetIndex, :getContext, :getGlobals, :getPStack
+}
 

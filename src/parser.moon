@@ -193,6 +193,7 @@ grammar = MatchGrammar extend indentG, {
     Assignable: Union {
         sym("*") * gref.Expr / ast.BoxStore
         Name/ast.RefStore
+        gref.Expr * sym("[") * gref.Expr * sym("]")/ast.ObjStore
         sym("&")* Name/(name) -> 
             store = ast.RefStore(name)
             store.isPtrSet = true
@@ -226,7 +227,9 @@ grammar = MatchGrammar extend indentG, {
         DoubleQuotedString
         gref.Object/ast.Object
     }
+
     Expr: Union {
+        gref._Expr * sym("[") * gref.Expr * sym("]")/ast.ObjLoad
         sym("&") * gref.Assignable / ast.BoxGet
         sym("*") * gref.Expr / ast.BoxLoad
         gref.FuncCall

@@ -11,6 +11,11 @@
 #include "runtime.h"
 #include <sys/mman.h>
 
+#define PSTACK() do { \
+    if (pstack) ggc_jitPointerStack = pstack; \
+} while(0)
+
+
 uint64_t RUNTIME_print(value_t* args, int n) {
     int i;
     for (i = 0; i < n; i++) {
@@ -39,7 +44,6 @@ LangObject langObjectNew(struct LangGlobals* globals) {
     LangNullArray members = NULL;
     LangShape shape = globals->emptyShape;
 
-   /* PSTACK();*/
     GGC_PUSH_2(ret, members);
 
     ret = GGC_NEW(LangObject);
@@ -195,7 +199,7 @@ void langStringPrint(LangString str) {
 /* get the index to which a member belongs in this object, creating one if requested */
 size_t langObjectGetMemberIndex(void **pstack, LangObject object,
 	LangString member, LangInlineCache *cache, int create) {
-    printf("IN HERE\n");
+	pstack = NULL;
 	LangShape shape = NULL, cshape = NULL;
 	LangShapeMap shapeChildren = NULL;
 	LangIndexMap shapeMembers = NULL;
@@ -203,17 +207,13 @@ size_t langObjectGetMemberIndex(void **pstack, LangObject object,
 	GGC_size_t_Unit indexBox = NULL;
 	size_t ret;
 
-    printf("IN HERE2\n");
-	/* PSTACK();*/
+	PSTACK();
 	GGC_PUSH_9(object, member, shape, cshape, shapeChildren, shapeMembers,
 			oldObjectMembers, newObjectMembers, indexBox);
 
 	shape = GGC_RP(object, shape);
 
 	
-        printf("Looking up ");
-	langStringPrint(member);
-	printf("\n");
 	/* first, check if it is a known cached shape and member for which we remember the index */
 	if (cache
 			!= NULL&& shape == GGC_RP(*cache, cachedShape) && member == GGC_RP(*cache, cachedMember)) {
@@ -278,3 +278,29 @@ size_t langObjectGetMemberIndex(void **pstack, LangObject object,
 	return ret;
 }
 
+void langObjectSet(void **pstack, LangObject object, LangString member, LangNull value,  LangInlineCache *cache) {
+    LangNullArray members = NULL;
+    size_t idx;
+
+    PSTACK();
+    GGC_PUSH_3(object, member, members);
+
+    idx = langObjectGetMemberIndex(NULL, object, member, cache, 1);
+    members = GGC_RP(object, members);
+    GGC_WAP(members, idx, value);
+
+}
+/* get a member of an object, or sdyn_undefined if it does not exist */
+LangNull langObjectGet(void **pstack, LangObject object, LangString member,  LangInlineCache *cache) {
+    LangNull ret = NULL;
+    size_t idx;
+
+    PSTACK();
+    GGC_PUSH_3(object, member, ret);
+
+    /* then get the member */
+    if ((idx = langObjectGetMemberIndex(NULL, object, member, cache, 0)) != (size_t) -1) {
+        ret = GGC_RAP(GGC_RP(object, members), idx);
+    }
+	return ret;
+}

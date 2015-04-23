@@ -150,7 +150,10 @@ ast.installOperation {
         @_symbolRecurse(S)
         --@condition.dest = false
     Object: (S) =>
+        @dest = StackRef() -- Our object must be stored in its own value.
+        @tempDest or= StackRef() -- Our object must be stored in a value.
         for {k, v} in *@value
+            v.dest or= @tempDest
             v\symbolResolve()
     -- Statements:
     Assign: (S) =>

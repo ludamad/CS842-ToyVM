@@ -1,5 +1,6 @@
 
-player = {hp: 100 + 2*3}
+player = { hp: "hp", test: "test", watever: {ok: 1, bad: 0} }
+
 
 f = (p) ->
     return p

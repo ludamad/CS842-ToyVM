@@ -1,5 +1,5 @@
 CC=gcc
-ECFLAGS=-O3 -g
+ECFLAGS= -g3
 CFLAGS=-D_XOPEN_SOURCE=600 -I../libjit/include -I. $(ECFLAGS) -fPIC
 AR=ar
 ARFLAGS=rc
