@@ -1,7 +1,6 @@
 
-valPtr = new 0
-print("Before Loop:", *valPtr, valPtr)
-while (*valPtr) < 10
-    print("Before:", *valPtr, valPtr)
-    *valPtr += 1
-    print("After:", *valPtr, valPtr)
+f = () ->
+    print("HI")
+    return 2
+
+print(f())

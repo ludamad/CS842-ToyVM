@@ -67,6 +67,18 @@ ast.installOperation {
     StringLit: (f) =>
         ptr = f.ljContext\getStringPtr(@value)
         return f\loadRelative f\longConst(ptr), 0, lj.ulong
+    FuncCall: (f) =>
+        @_compileRecurse(f)
+        fVal = loadE(f, @func)
+        -- @lastStackLoc is the next stack index after the current variables
+        callSpace = f\longConst VAL_SIZE * (@lastStackLoc + #@args)
+        if (@lastStackLoc + #@args ~= f.stackPtrsUsed)
+            f\storeRelative(f.stackTopPtr, 0, f\add(f.stackFrameVal, callSpace))
+        val = f\callIndirect(fVal, {f\intConst(#@args)}, lj.uint, {lj.uint})
+        -- Must restore after return value changes in top pointer:
+        f\storeRelative(f.stackTopPtr, 0, f.stackTopVal)
+        return @dest\load(f)
+ 
     FuncBody: (f) =>
         @compiledFunc = M.compileFuncBody @paramNames, @
         return f\longConst  @compiledFunc\toCFunction()

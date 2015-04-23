@@ -309,6 +309,10 @@ A.While = StatementT {
         return f
 }
 
+A.Return = StatementT {
+    Expr.value
+}
+
 A.If = StatementT {
     Expr.condition
     Statement.block

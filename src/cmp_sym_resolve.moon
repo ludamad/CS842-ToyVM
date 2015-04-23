@@ -126,8 +126,8 @@ ast.installOperation {
             arg\symbolResolve(S)
             -- Ensure that each is allocated to a subsequent index:
             arg.dest or= StackRef()
-        if @isExpression
-            @dest or= StackRef() -- Our return value requires one, as well.
+        @dest or= StackRef() -- Our return value requires one, as well.
+        print @
     -- Assignables:
     RefStore: (S) =>
         sym, crossedFunc = S\get(@name)
@@ -148,10 +148,10 @@ ast.installOperation {
         @symbol = sym
     While: (S) =>
         @_symbolRecurse(S)
-        @condition.dest = false
+        --@condition.dest = false
     If: (S) =>
         @_symbolRecurse(S)
-        @condition.dest = false
+        --@condition.dest = false
     -- Statements:
     Assign: (S) =>
         for i=1,#@vars

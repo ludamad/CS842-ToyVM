@@ -170,6 +170,7 @@ grammar = MatchGrammar extend indentG, {
     Block: CaptureTable(gref.Line * ZeroOrMore(gref.Line))
     Statement: Union {
         gref.Loop
+        gref.ReturnStmnt
         gref.If
         gref.AssignStmnt
         gref.Declare
@@ -186,6 +187,7 @@ grammar = MatchGrammar extend indentG, {
     If: sym("if") * gref.Expr * gref.Body / ast.If
     Assign: (gref._ValOper*MatchExact("=")  + symC("=")) * gref.ExprList
     AssignStmnt: gref.AssignableList * gref.Assign / ast.Assign
+    ReturnStmnt: sym("return") * gref.Expr / ast.Return
     Declare: _Name * gref.AssignableList * (OneOrLess gref.Assign) / ast.Declare
 
     Assignable: Union {
