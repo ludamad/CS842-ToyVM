@@ -197,8 +197,12 @@ A.ObjStore = AssignableT {
     Expr.obj
     Expr.key
     setUpForStore: (node) =>
-    generateStore: (fb, node) =>
-        error "UNIMPLEMENTED"
+    generateStore: (f, node) =>
+        assert @obj.compiledVal, "Box value should be compiled!"
+        assert @key.compiledVal, "Key value should be compiled!"
+        assert node.compiledVal, "Node value should be compiled!"
+        freshCache = f\longConst f.ljContext\getNewInlineCache()
+        return f\call runtime.objectSet, 'objectSet', {f\longConst(0), @obj.compiledVal, @key.compiledVal, node.compiledVal, freshCache}
 
     toExpr: () =>
         return A.ObjLoad @obj, @key

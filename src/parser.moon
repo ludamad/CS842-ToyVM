@@ -191,9 +191,9 @@ grammar = MatchGrammar extend indentG, {
     Declare: _Name * gref.AssignableList * (OneOrLess gref.Assign) / ast.Declare
 
     Assignable: Union {
+        gref._Expr * sym("[") * gref.Expr * sym("]")/ast.ObjStore
         sym("*") * gref.Expr / ast.BoxStore
         Name/ast.RefStore
-        gref.Expr * sym("[") * gref.Expr * sym("]")/ast.ObjStore
         sym("&")* Name/(name) -> 
             store = ast.RefStore(name)
             store.isPtrSet = true

@@ -51,6 +51,12 @@ LangContext = newtype {
         ptr[0] = lStr
         @stringPtrs[str] = ptr
         return ptr
+
+    -- Creates a new inline cache object:
+    getNewInlineCache: () =>
+        ptr = librun.langCreatePointer()
+        ptr[0] = librun.langInlineCacheNew()
+        return ptr
 }
 
 return {:LangContext}

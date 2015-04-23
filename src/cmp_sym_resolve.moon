@@ -119,6 +119,8 @@ ast.installOperation {
         @dest = StackRef()
     BoxStore: (S) =>
         @_symbolRecurse(S)
+    ObjStore: (S) =>
+        @_symbolRecurse(S)
     FuncCall: (S) =>
         @func\symbolResolve(S)
         for arg in *@args

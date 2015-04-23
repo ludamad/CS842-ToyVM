@@ -119,8 +119,8 @@ ast.installOperation {
         return f\boxLoad(@ptr.compiledVal)
     ObjLoad: (f) =>
         @_compileRecurse(f)
-        kVal = @key.compiledVal
-        return f\call runtime.objectGet, 'objectGet', {f\longConst(0), @dest\load(f), kVal, f\longConst(0)}
+        freshCache = f\longConst f.ljContext\getNewInlineCache()
+        return f\call runtime.objectGet, 'objectGet', {f\longConst(0), @obj.compiledVal, @key.compiledVal, freshCache}
 
     Object: (f) =>
         obj = f\call(runtime.objectNew, 'objectNew', {f\longConst runtime.getGlobals()})
@@ -130,7 +130,11 @@ ast.installOperation {
             kVal = f\loadRelative f\longConst(kPtr), 0, lj.ulong
 
             v\compile(f)
-            f\call runtime.objectSet, 'objectSet', {f\longConst(0), @dest\load(f), kVal, v.compiledVal, f\longConst(0)}
+            -- It's unlikely for an object constructor to have stable writes
+            -- we shouldn't use an inline cache here -- ideally, an object template would have been made.
+            freshCache = f\longConst 0
+            -- freshCache = f\longConst f.ljContext\getNewInlineCache()
+            f\call runtime.objectSet, 'objectSet', {f\longConst(0), @dest\load(f), kVal, v.compiledVal, freshCache}
 
         return @dest\load(f)
 }

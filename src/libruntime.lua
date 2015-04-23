@@ -62,6 +62,7 @@ ffi.cdef [[
         void* capturedVars;
     } LangFunction;
 
+    void* langInlineCacheNew();
     void langObjectSet(void **pstack, void* object, void* member, void* value,  void* cache);
     void* langObjectGet(void **pstack, void* object, void* member, void* cache);
     void** langCreatePointer();

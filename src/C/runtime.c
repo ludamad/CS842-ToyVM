@@ -1,3 +1,5 @@
+/* Original code by Gregor Richards. See license for sdyn. */
+
 /* Allow for MAP_ANONYMOUS */
 #define _GNU_SOURCE
 
@@ -52,6 +54,9 @@ LangObject langObjectNew(struct LangGlobals* globals) {
     GGC_WP(ret, shape, shape);
 
     return ret;
+}
+LangInlineCache langInlineCacheNew() {
+    return GGC_NEW(LangInlineCache);
 }
 
 static int stringCmp(LangString strl, LangString strr) {
@@ -217,7 +222,6 @@ size_t langObjectGetMemberIndex(void **pstack, LangObject object,
 	/* first, check if it is a known cached shape and member for which we remember the index */
 	if (cache
 			!= NULL&& shape == GGC_RP(*cache, cachedShape) && member == GGC_RP(*cache, cachedMember)) {
-		langStringPrint(member);
 		return GGC_RD(*cache, cachedIndex);
 	}
 
@@ -273,7 +277,6 @@ size_t langObjectGetMemberIndex(void **pstack, LangObject object,
 		GGC_WP(*cache, cachedShape, shape);
 		GGC_WP(*cache, cachedMember, member);
 		GGC_WD(*cache, cachedIndex, ret);
-		langStringPrint(member);
 	}
 	return ret;
 }
