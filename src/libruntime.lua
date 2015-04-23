@@ -62,6 +62,8 @@ ffi.cdef [[
     void langStringPrint(LangString* str);
     LangString* langStringConcat(LangString* str1, LangString* str2);
 
+    int eval(int* iPtr, int* end, void** pStack, struct LangGlobals* globals, void* metadata);
+
 ]]
 
 return gc

@@ -250,3 +250,4 @@ size_t langGetObjectMemberIndex(void **pstack, LangObject object,
 	}
 	return ret;
 }
+

@@ -18,6 +18,23 @@ import INT_SIZE, VAL_SIZE, TYPE_TAG_BOOL, TYPE_TAG_INT
 import FunctionBuilder
     from require "cmp_func_builder"
 
+import Scope from require "cmp_sym_resolve"
+
+--------------------------------------------------------------------------------
+-- Loaded once:
+--------------------------------------------------------------------------------
+
+_globalScope = nil
+
+getGlobalScope = () ->
+    if _globalScope
+        return _globalScope
+    import LangContext from require "cmp_context"
+    globalLjContext = LangContext()
+    _globalScope = runtime.makeGlobalScope(globalLjContext)
+    _globalScope.context = globalLjContext
+    return _globalScope
+
 --------------------------------------------------------------------------------
 -- The exported module
 --------------------------------------------------------------------------------
@@ -51,7 +68,7 @@ ast.installOperation {
         ptr = f.ljContext\getStringPtr(@value)
         return f\loadRelative f\longConst(ptr), 0, lj.ulong
     FuncBody: (f) =>
-        @compiledFunc = M.compileFuncBody f.ljContext, @paramNames, @, f.scope, 2
+        @compiledFunc = M.compileFuncBody @paramNames, @
         return f\longConst  @compiledFunc\toCFunction()
     Operator: (f) =>
         @_compileRecurse(f)
@@ -149,14 +166,14 @@ ast.installOperation {
             var\generateStore(f, val)
 }
 
-M.compileFuncBody = (ljContext, paramNames, ast, scope, skip = 0) ->
-    fb = FunctionBuilder(ljContext, ast, paramNames, scope)
+M.compileFuncBody = (paramNames, ast) ->
+    scope = Scope(getGlobalScope())
+    fb = FunctionBuilder(scope.parentScope.context, ast, scope, paramNames)
+    scope.funcRoot = fb
     ast.functionBuilder = fb
-    if skip < 1
-        ast\symbolResolve(scope)
-    fb.scope = ast.block.scope
-    if skip < 2
-        ast\stackResolve(fb)
+    ast.block.scope = scope
+    ast\symbolResolve(scope)
+    ast\stackResolve(fb)    
     ast\compile(fb)
     fb\compile()
     return fb

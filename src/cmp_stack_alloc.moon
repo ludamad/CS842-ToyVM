@@ -37,8 +37,9 @@ ast.installOperation {
         @_stackRecurse(f)
         f\loadStackLoc()
     FuncBody: (f) => 
-        @block\stackResolve(f)
-        if @dest
+        if @functionBuilder
+            @block\stackResolve(f)
+        elseif @dest
             @dest\resolve(f)
     FuncCall: (f) =>
         @lastStackLoc = f.stackLoc

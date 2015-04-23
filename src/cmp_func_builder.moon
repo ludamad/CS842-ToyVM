@@ -55,21 +55,22 @@ FunctionBuilder = newtype {
         assert @bodyAst, "Function builder requires AST as parameter"
         lj.Function.init(@, @ljContext, lj.uint, {lj.uint})
         level = @getMaxOptimizationLevel()
-        pretty @scope
+
         @setOptimizationLevel(level)
 
         @constantPtrs = {}
 
         @stackLocHistory = {}
         @stackLoc = 0
+        @stackPtrsUsed = @stackLoc
         @stackSymInit(@paramNames, @scope)
 
     ------------------------------------------------------------------------------
     -- Stack and symbol resolving:
     ------------------------------------------------------------------------------
     stackSymInit: (@paramNames, @scope) =>
-        for i=1,#@paramNames
-            var = Variable(@, @paramNames[i])
+        for name in *@paramNames
+            var = Variable(name)
             @scope\declare(var)
         @stackPtrsUsed = @stackLoc
 

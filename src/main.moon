@@ -13,14 +13,12 @@ import LangContext, compileFuncBody, parse from require "cmp"
 --------------------------------------------------------------------------------
 -- Runtime initialization
 --------------------------------------------------------------------------------
-ljContext = LangContext()
-globalScope = rt.makeGlobalScope(ljContext)
 
 grayPrint  = (s) -> print ansiCol.WHITE(s,ansiCol.FAINT)
 compileString = (str) ->
     ast = parse(str)
     grayPrint '-- Bare Parse Tree ---------------------------------------------------------------------------'
-    fb = compileFuncBody(ljContext, {}, ast, globalScope)
+    fb = compileFuncBody({}, ast)
     cFunc = fb\toCFunction()
     grayPrint '-- Stack Allocated Tree ----------------------------------------------------------------------'
     print(ast)

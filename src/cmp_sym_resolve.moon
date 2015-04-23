@@ -25,6 +25,7 @@ StackRef = newtype {
     init: (@index = false) =>
         @varLink = false
     resolve: (f) =>
+        print @varLink, @index, "Resolving"
         if not @index
             if @varLink
                 @index = assert(@varLink.index, "link should have index!!")
@@ -44,6 +45,8 @@ StackRef = newtype {
 M.Variable = newtype {
     parent: StackRef
     init: (@name, @boxed = false) =>
+        assert(type @name == "string")
+        pretty @name
         StackRef.init(@)
     link: (astNode) =>
         astNode.dest or= StackRef()
@@ -74,11 +77,10 @@ M.Scope = newtype {
     -- to generate a capture.
     -- @funcRoot == false implies global (provisionally, constant) scope.
     init: (@parentScope = false, @funcRoot = false) =>
-        if not @funcRoot and @parentScope
-            @funcRoot = assert(@parentScope.funcRoot, "Should not inherit global scope parent!")
+        if @parentScope
+            @funcRoot = @parentScope.funcRoot
         @variables = {}
         @varList = {}
-        assert not @parentScope or @funcRoot
     declare: (var) =>
         @variables[var.name] = var
         append @varList, var
@@ -105,14 +107,10 @@ ast.installOperation {
         @_symbolRecurse(S)
     Expr: (S) =>
         @_symbolRecurse(S)
-    -- Recursively descend into child functions:
-    FuncBody: (S) =>
-        -- Override the block making a scope:
-        newS = M.Scope(S, @)
-        for param in *@paramNames
-            newS\declare(M.Variable param)
-        @block.scope = newS
-        @block\_symbolRecurse(newS)
+    -- We not recursively descend into child functions:
+    FuncBody: (S) => 
+        if @functionBuilder
+            @block\_symbolRecurse(S)
     Block: (S) =>
         -- 'Push' a new scope:
         @scope = M.Scope(S)

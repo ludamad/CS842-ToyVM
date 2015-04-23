@@ -1,6 +1,3 @@
-#include <jit/jit.h>
-
-
 #include "runtime.h"
 
 /****************************************************************************
@@ -27,6 +24,7 @@ enum {
 	LBC_MUL,
 	LBC_DIV,
 
+	LBC_IF_STATEMENT,
 	/* Branch on greater than: */
 	LBC_BGT,
 	/* Branch on equal: */
@@ -34,6 +32,18 @@ enum {
 	/* Return properly backed booleans: */
 	LBC_GT,
 };
+
+/* The special type values (not usable as values in normal L code). */
+enum {
+
+};
+
+typedef struct {
+	/* First, stores the value observed. If multiple values are observed,
+	 * observes the type. If multiple types are observed, set to LBC_GENERIC.*/
+	LangNullArray* recordedValues;
+	unsigned int* bytecodes;
+} BytecodeBlock;
 
 /****************************************************************************
  * Function context data

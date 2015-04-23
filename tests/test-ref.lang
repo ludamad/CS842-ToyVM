@@ -1,9 +1,0 @@
-jiggleRef = (aPtr) ->
-    *aPtr = "Sorry I changed you"
-
-a = new 1
-
-print("Before", a)
-jiggleRef(a)
-
-print("After", a)
