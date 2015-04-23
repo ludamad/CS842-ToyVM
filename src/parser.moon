@@ -202,7 +202,7 @@ grammar = MatchGrammar extend indentG, {
     -- Expressions:
     ExprList: CaptureTable OneOrLess(gref.Expr * ZeroOrMore(sym(",")*gref.Expr))
     ExprListS: CaptureTable(gref.Expr * ZeroOrMore(sym(",")*gref.Expr))
-    KeyValPair: Name * KeyValSep * gref.Expr / (key, value) -> {:key, :value}
+    KeyValPair: Name * KeyValSep * gref.Expr / (key, value) -> {key, value}
     Object: StartBrace * CaptureTable OneOrLess(gref.KeyValPair * (ZeroOrMore sym(",") *gref.KeyValPair)) * EndBrace
     FuncParams: CaptureTable(OneOrLess(Name * ZeroOrMore(sym(",")*Name)))
     FuncHead: Union {

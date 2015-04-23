@@ -25,7 +25,6 @@ StackRef = newtype {
     init: (@index = false) =>
         @varLink = false
     resolve: (f) =>
-        print @varLink, @index, "Resolving"
         if not @index
             if @varLink
                 @index = assert(@varLink.index, "link should have index!!")
@@ -127,14 +126,12 @@ ast.installOperation {
             -- Ensure that each is allocated to a subsequent index:
             arg.dest or= StackRef()
         @dest or= StackRef() -- Our return value requires one, as well.
-        print @
     -- Assignables:
     RefStore: (S) =>
         sym, crossedFunc = S\get(@name)
         -- If something crosses a function, we must declare it locally
         -- later, and add it as a boxed parameter.
-        if crossedFunc
-            print @name
+        --if crossedFunc
             -- append(S.funcRoot.captureVars, sym)
         if sym == nil
             sym = M.Variable(@name)
@@ -152,6 +149,9 @@ ast.installOperation {
     If: (S) =>
         @_symbolRecurse(S)
         --@condition.dest = false
+    Object: (S) =>
+        for {k, v} in *@value
+            v\symbolResolve()
     -- Statements:
     Assign: (S) =>
         for i=1,#@vars

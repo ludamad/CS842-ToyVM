@@ -34,12 +34,12 @@ static size_t stringHash(LangString str) {
 }
 
 /* create an object */
-LangObject langNewObject(struct LangGlobals* globals, void **pstack) {
+LangObject langObjectNew(struct LangGlobals* globals) {
     LangObject ret = NULL;
     LangNullArray members = NULL;
     LangShape shape = globals->emptyShape;
 
-    PSTACK();
+   /* PSTACK();*/
     GGC_PUSH_2(ret, members);
 
     ret = GGC_NEW(LangObject);
@@ -118,10 +118,18 @@ void langGlobalsInit(struct LangGlobals* globals, int pstackSize) {
     globals->emptyShape = emptyShape;
     globals->defaultValue = langStringCopy("", 0);
     langDefaultValue = globals->defaultValue;
+    
     globals->types.boxType = (struct GGGGC_Descriptor**) langCreatePointer();
     *globals->types.boxType = LangBoxedRef__descriptorSlot.descriptor;
+    
     globals->types.stringType = (struct GGGGC_Descriptor**) langCreatePointer();
     *globals->types.stringType = LangString__descriptorSlot.descriptor;
+
+    globals->types.funcType = (struct GGGGC_Descriptor**) langCreatePointer();
+    *globals->types.funcType = LangFunction__descriptorSlot.descriptor;
+
+    globals->types.objType = (struct GGGGC_Descriptor**) langCreatePointer();
+    *globals->types.objType = LangObject__descriptorSlot.descriptor;
 
     GGC_POP();
     {
@@ -185,8 +193,9 @@ void langStringPrint(LangString str) {
 }
 
 /* get the index to which a member belongs in this object, creating one if requested */
-size_t langGetObjectMemberIndex(void **pstack, LangObject object,
+size_t langObjectGetMemberIndex(void **pstack, LangObject object,
 	LangString member, LangInlineCache *cache, int create) {
+    printf("IN HERE\n");
 	LangShape shape = NULL, cshape = NULL;
 	LangShapeMap shapeChildren = NULL;
 	LangIndexMap shapeMembers = NULL;
@@ -194,7 +203,8 @@ size_t langGetObjectMemberIndex(void **pstack, LangObject object,
 	GGC_size_t_Unit indexBox = NULL;
 	size_t ret;
 
-	PSTACK();
+    printf("IN HERE2\n");
+	/* PSTACK();*/
 	GGC_PUSH_9(object, member, shape, cshape, shapeChildren, shapeMembers,
 			oldObjectMembers, newObjectMembers, indexBox);
 

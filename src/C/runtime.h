@@ -129,6 +129,8 @@ GGC_END_TYPE(LangFunction,
 struct LangTypeDescriptors {
     struct GGGGC_Descriptor** boxType;
     struct GGGGC_Descriptor** stringType;
+    struct GGGGC_Descriptor** funcType;
+    struct GGGGC_Descriptor** objType;
 };
 struct LangGlobals {
     void** pstack;

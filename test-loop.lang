@@ -1,0 +1,6 @@
+valPtr = 0
+print("Before Loop:", valPtr)
+while valPtr < 10
+    print("Before:", valPtr)
+    valPtr += 1
+    print("After:", valPtr)

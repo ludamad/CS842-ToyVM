@@ -104,7 +104,6 @@ FunctionBuilder = newtype {
         return @createNintConstant(lj.uint, fcast("unsigned int", val))
     taggedIntConst: (val) =>
         lVal = LangValue(TYPE_TAG_INT, val)
-        print val, lVal\long()
         return @createLongConstant(lj.ulong, lVal\long())
 
     boxTypeConst: () =>

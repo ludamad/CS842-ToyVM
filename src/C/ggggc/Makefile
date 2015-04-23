@@ -5,7 +5,7 @@ AR=ar
 ARFLAGS=rc
 RANLIB=ranlib
 
-OBJS=allocate.o collect.o globals.o roots.o threads.o ../runtime.o ../interpreter.o
+OBJS=allocate.o collect.o globals.o roots.o threads.o ../runtime.o 
 
 all: libggggc.a libggggc.so
 

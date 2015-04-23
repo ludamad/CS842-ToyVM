@@ -8,13 +8,16 @@ matchesType = (v, desc) ->
     descPtr = asS[0].gcHeader.descriptor__ptr 
     return (descPtr == desc)
 
+_context = nil
+
 local C 
 makeGlobalScope = (ljContext) ->
     C or= require "cmp"
     scope = C.Scope()
 
+    _context = ljContext
     {:pstack, :pstackTop, :types} = ljContext.globals[0]
-    {:boxType, :stringType} = types
+    {:boxType, :stringType, :objectType} = types
 
     pstackTop = ffi.cast("LangValue**", pstackTop)
     getArgs = (n) ->
@@ -59,6 +62,9 @@ makeGlobalScope = (ljContext) ->
       elseif matchesType(ptr, stringType[0])
           asString = ffi.cast("LangString**", ptr)[0]
           librun.langStringPrint(asString)
+      elseif matchesType(ptr, objectType[0])
+          io.write "<object>"
+          --librun.langStringPrint(asString)
 
     -- Runtime functions.
     -- LuaJIT 'converts' these to C pointers callable by libjit, what a dear ...
@@ -102,5 +108,11 @@ gcMallocPointerArray = lj.NativeFunction(gc.ggggc_mallocPointerArray, lj.ptr, {}
 gcMallocDataArray = lj.NativeFunction(gc.ggggc_mallocDataArray, lj.ptr, {})
 
 stringConcat = lj.NativeFunction(librun.langStringConcat, lj.ptr, {lj.ptr, lj.ptr})
-return {:makeGlobalScope, :gcMalloc, :gcMallocPointerArray, :gcMallocDataArray, :stringConcat}
+objectNew = lj.NativeFunction(librun.langObjectNew, lj.ptr, {lj.ptr})
+objectGet = lj.NativeFunction(librun.langObjectGetMemberIndex, lj.long, {lj.ptr, lj.ptr, lj.ptr, lj.ptr, lj.int})
+
+getContext = () -> assert(_context)
+getGlobals = () -> getContext().globals
+getPStack = () -> getGlobals()[0].pstackTop[0]
+return {:makeGlobalScope, :gcMalloc, :gcMallocPointerArray, :gcMallocDataArray, :stringConcat, :objectNew, :objectGet, :getContext, :getGlobals, :getPStack}
 

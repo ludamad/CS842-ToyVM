@@ -118,6 +118,24 @@ ast.installOperation {
         @_compileRecurse(f)
         -- Not much else to do but ask the runtime kindly for a box.
         return f\boxLoad(@ptr.compiledVal)
+    Object: (f) =>
+        obj = f\call(runtime.objectNew, 'objectNew', {f\longConst runtime.getGlobals()})
+        @dest\store(f, obj) -- Store in case object moves during initialization
+        CREATE_MEMBERS = f\intConst(1)
+        for {k,v} in *@value
+            -- Handle object index retrieval & inline caching:
+            kPtr = f.ljContext\getStringPtr(k)
+            kVal = f\loadRelative f\longConst(kPtr), 0, lj.ulong
+            pstackVal = f\longConst runtime.getPStack()
+            params = {pstackVal, @dest\load(f), kVal, f\longConst(0), CREATE_MEMBERS}
+            indexVal = f\call(runtime.objectGet, 'objectGet', params)
+
+            -- Handle object index setting:
+            vVal = v\compileVal(f)
+            valueArea = f\addRelative @dest\load(f), ffi.sizeof("LangObjectHeader")
+            f\storeElem valueArea, indexVal, vVal
+
+        return @dest\load(f)
 }
 
 ast.installOperation {
@@ -156,7 +174,6 @@ ast.installOperation {
     Return: (f) =>
         -- @_compileRecurse(f)
         f\compileFuncReturn({@value})
-
     FuncCall: (f) =>
         @_compileRecurse(f)
         fVal = loadE(f, @func)
@@ -169,6 +186,9 @@ ast.installOperation {
         f\storeRelative(f.stackTopPtr, 0, f.stackTopVal)
         if @isExpression
             @compiledVal = @dest\load(f)
+    Object: (f) =>
+        -- compileVal sets dest
+        @compiledVal = @compileVal(f)
     Expr: (f) =>
         @compiledVal = @compileVal(f)
         if @dest
@@ -190,6 +210,7 @@ M.compileFuncBody = (paramNames, ast) ->
     ast.block.scope = scope
     ast\symbolResolve(scope)
     ast\stackResolve(fb)    
+    print ast
     ast\compile(fb)
     fb\compile()
     return fb

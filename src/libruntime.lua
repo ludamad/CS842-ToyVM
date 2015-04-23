@@ -12,6 +12,7 @@ ffi.cdef [[
         struct GGGGC_Descriptor** boxType;
         struct GGGGC_Descriptor** stringType;
         struct GGGGC_Descriptor** funcType;
+        struct GGGGC_Descriptor** objectType;
     };
 
     struct LangGlobals {
@@ -48,6 +49,13 @@ ffi.cdef [[
 
     typedef struct {
         struct GGGGC_Header gcHeader;
+        void* maps;
+        // Next instruction is members.
+        // Used for sizeof.
+    } LangObjectHeader;
+
+    typedef struct {
+        struct GGGGC_Header gcHeader;
         LangHeader header;
         void* cFuncPtr;
         /* Array of LangValue's to use as initial arguments:*/
@@ -55,6 +63,8 @@ ffi.cdef [[
     } LangFunction;
 
     void** langCreatePointer();
+    void** langObjectNew(struct LangGlobals* globals);
+    size_t langObjectGetMemberIndex(void **pstack, void* object, void* member, void* cache, int create);
     void langStringPrint(LangString* str);
     void langGlobalsInit(struct LangGlobals* globals, int pstackSize);
     LangString* langStringNew(size_t len);

@@ -48,6 +48,14 @@ ast.installOperation {
         f\loadStackLoc()
         if @dest
             @dest\resolve(f)
+    Object: (f) =>
+        if @dest
+            @dest\resolve(f)
+        for {k,v} in *@value
+            f\saveStackLoc()
+            v\stackResolve(f)
+            f\loadStackLoc()
+       
     Expr: (f) =>
         f\saveStackLoc()
         @_stackRecurse(f)

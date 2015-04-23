@@ -249,9 +249,12 @@ A.StringLit = ExprT {
 }
 
 A.Object = ExprT {
-    String.value
+    Any.value
     Any.dest false
     Any.compiledVal false
+    __tostring: () =>
+        tmp = ["#{l[1]}: #{l[2]}" for l in *@value]
+        return "{" .. table.concat(tmp, ', ') .. "}"
 }
 
 A.IntLit = ExprT {

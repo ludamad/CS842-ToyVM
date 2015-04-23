@@ -1,7 +1,7 @@
 
-f = () ->
-    print("YO")
-    print("HI")
-    return 2
+player = {hp: 100 + 2*3}
 
-print(f())
+f = (p) ->
+    return p
+
+print(f(player))
