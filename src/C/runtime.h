@@ -43,7 +43,9 @@ enum {
     /* For fast string checks: */
     LANG_IS_STRING = 1 << 4,
     /* For fast box checks: */
-    LANG_IS_BOX = 1 << 5
+    LANG_IS_BOX = 1 << 5,
+    /* For fast object checks: */
+    LANG_IS_OBJECT = 1 << 6
 };
 
 typedef struct {

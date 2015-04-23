@@ -193,6 +193,20 @@ A.BoxStore= AssignableT {
         return "*#{@ptr}"
 }
 
+A.ObjStore = AssignableT {
+    Expr.ptr
+    setUpForStore: (node) =>
+    generateStore: (fb, node) =>
+        assert @ptr.compiledVal, "Box value should be compiled!"
+        assert node.compiledVal, "Node value should be compiled!"
+        fb\boxStore(@ptr.compiledVal, node.compiledVal)
+
+    toExpr: () =>
+        return A.BoxLoad @ptr
+    __tostring: () =>
+        return "*#{@ptr}"
+}
+
 --------------------------------------------------------------------------------
 -- Value expressions:
 --------------------------------------------------------------------------------
@@ -311,6 +325,8 @@ A.While = StatementT {
 
 A.Return = StatementT {
     Expr.value
+    __tostring: () =>
+        return "return #{@value}"
 }
 
 A.If = StatementT {

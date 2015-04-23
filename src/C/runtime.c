@@ -33,6 +33,23 @@ static size_t stringHash(LangString str) {
     return ret;
 }
 
+/* create an object */
+LangObject langNewObject(struct LangGlobals* globals, void **pstack) {
+    LangObject ret = NULL;
+    LangNullArray members = NULL;
+    LangShape shape = globals->emptyShape;
+
+    PSTACK();
+    GGC_PUSH_2(ret, members);
+
+    ret = GGC_NEW(LangObject);
+    members = GGC_NEW_PA(LangNull, 0);
+    GGC_WP(ret, members, members);
+    GGC_WP(ret, shape, shape);
+
+    return ret;
+}
+
 static int stringCmp(LangString strl, LangString strr) {
     GGC_char_Array arrl = NULL, arrr = NULL;
     size_t lenl, lenr, minlen;
