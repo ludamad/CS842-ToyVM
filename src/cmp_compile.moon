@@ -104,10 +104,13 @@ ast.installOperation {
 --        if op ~= '=='
             --compileNumCheck(val1)
             --compileNumCheck(val2)
-        i1 = f\getLVal(val1)
-        i2 = f\getLVal(val2)
-        ret = op(f,i1, i2) 
-        return boxer(f, ret)
+        if @op ~= "==" and @op ~= "!="
+            i1 = f\getLVal(val1)
+            i2 = f\getLVal(val2)
+            ret = op(f,i1, i2) 
+            return boxer(f, ret)
+        else
+            return boxer(f, op(f, val1, val2))
     BoxNew: (f) => 
         @_compileRecurse(f)
         -- Not much else to do but ask the runtime kindly for a box.

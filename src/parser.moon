@@ -230,6 +230,7 @@ grammar = MatchGrammar extend indentG, {
         gref.Object/ast.Object
         gref.Function
         sym('(')* gref.Expr * sym(")")
+        sym('(')* gref.MethodCall * sym(")")
     }
 
     Expr: Union {

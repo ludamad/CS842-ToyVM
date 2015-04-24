@@ -135,7 +135,7 @@ makeGlobalScope = (ljContext) ->
     values = {
         "true": (f) -> f\longConst(4294967297)
         "nil": (f) -> f\longConst(0)
-        "false": (f) -> f\longConst(1)
+        "false": (f) -> f\longConst(C.TYPE_TAG_BOOL)
         "global": (f) -> f\loadRelative(f\longConst(GLOBALS_PTR), 0, lj.ulong)
     }
 
