@@ -37,13 +37,33 @@ makeGlobalScope = (ljContext) ->
         val = valPtr[0]
         assert val.tag ~= 0, 'nil value!'
         if val.tag == C.TYPE_TAG_INT
+
             v = tostring(val.val)
             return librun.langStringCopy(v, #v)
         if val.tag == C.TYPE_TAG_BOOL
+
             v = if val.val == 0 then 'false' else 'true'
             return librun.langStringCopy(v, #v)
-        return (ffi.cast "LangString*", valPtr)[0]
+        return (ffi.cast "LangString**", valPtr)[0]
 
+    -- toInt = (valPtr) ->
+    --     val = valPtr[0]
+    --     assert val.tag ~= 0, 'nil value!'
+
+    --     if val.tag == C.TYPE_TAG_BOOL
+    --         conv = ffi.new("LangValue[1]")
+    --         conv[0].tag = C.TYPE_TAG_INT
+    --         conv[0].val = val.val
+    --         return (ffi.cast "LangValue*", conv)
+    --     if val.tag ~= C.TYPE_TAG_INT
+    --         c = (ffi.cast "LangString*", valPtr)[0].array[0].a__data
+    --         n = (ffi.cast "LangString*", valPtr)[0].array[0].length
+    --         print n
+    --         conv = ffi.new("LangValue[1]")
+    --         conv[0].tag = C.TYPE_TAG_INT
+    --         conv[0].val = tonumber(ffi.string(c, v))
+    --         return (ffi.cast "LangValue*", conv)
+    --     return (ffi.cast "LangValue*", valPtr)
     printVal = (ptr) ->
       if ptr[0].tag == 0
           io.write 'nil'
@@ -75,8 +95,24 @@ makeGlobalScope = (ljContext) ->
             argPtr = getArgs(n)
             s = toStr(argPtr)
             return setRet(n, s, "LangString*")
+        -- toInt: (n) -> 
+        --   arg = getArgs(n)
+        --   return setRet(n, toInt(arg), "LangValue*")
+        readLn: (n) ->
+          s = io.read("*line")
+          sVal = librun.langStringCopy(s, #s)
+          return setRet(n, sVal, "LangString*")
         print: (n) ->
            log "#{n} args to print"
+           args = getArgs(n)
+           for i=0,tonumber(n)-1
+              log(args[i].tag, args[i].val)
+              if i >= 1 
+                  io.write '\t'
+              printVal(args + i)
+           return 0
+        printLn: (n) ->
+           log "#{n} args to printLn"
            args = getArgs(n)
            for i=0,tonumber(n)-1
               log(args[i].tag, args[i].val)
@@ -94,9 +130,13 @@ makeGlobalScope = (ljContext) ->
     for k,v in pairs(funcs)
         scope\declare(C.Constant(k, v))
 
+    GLOBALS_PTR = librun.langCreatePointer()
+    GLOBALS_PTR[0] = librun.langObjectNew(ljContext.globals)
     values = {
-        "true": (f) -> longConst(f, 4294967297)
-        "false": (f) -> longConst(f, 1)
+        "true": (f) -> f\longConst(4294967297)
+        "nil": (f) -> f\longConst(0)
+        "false": (f) -> f\longConst(1)
+        "global": (f) -> f\loadRelative(f\longConst(GLOBALS_PTR), 0, lj.ulong)
     }
 
     for k,v in pairs(values)

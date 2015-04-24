@@ -23,7 +23,7 @@ compileString = (str) ->
     grayPrint '-- Stack Allocated Tree ----------------------------------------------------------------------'
     print(ast)
     grayPrint '-- Running -----------------------------------------------------------------------------------'
-    print fb\smartDump()
+    -- print fb\smartDump()
     return () -> cFunc(0)
 
 compileFile = (fileName) ->

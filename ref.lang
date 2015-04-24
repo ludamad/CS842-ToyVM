@@ -1,8 +1,10 @@
 
 player = { hp: "hp", test: "test", watever: {ok: 1, bad: 0} }
 
+global.test = 1
 
 f = (p) ->
-    return p
+    print(global.test)
+    return p.hp
 
 print(f(player))

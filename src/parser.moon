@@ -75,7 +75,7 @@ Num = Space * (Int+Float)
 symC = (chars) -> Space * Capture(MatchExact chars)
 sym = (chars) -> Space * (MatchExact chars)
 -- In increase precendence:
-LogicOp = Space * Capture(MatchAnyOf("<>") + MatchExact("<=") + MatchExact(">="))
+LogicOp = Space * Capture(MatchExact("!=") + MatchExact("<") + MatchExact(">") + MatchExact("<=") + MatchExact(">=") + MatchExact("=="))
 Op1 = Space * Capture(MatchAnyOf "%+%-")
 Op2 = symC("..") + symC("and") + symC("or")
 Op3 = Space * Capture(MatchAnyOf "%*%/%%")
@@ -174,6 +174,7 @@ grammar = MatchGrammar extend indentG, {
         gref.If
         gref.AssignStmnt
         gref.Declare
+        gref.MethodCall  / (@isExpression=false)=>@
         gref.FuncCall    / (@isExpression=false)=>@
         gref.FuncCallS   / (@isExpression=false)=>@
     }
@@ -192,6 +193,7 @@ grammar = MatchGrammar extend indentG, {
 
     Assignable: Union {
         gref._Expr * sym("[") * gref.Expr * sym("]")/ast.ObjStore
+        gref._Expr * sym(".") * Name/ (e1, n) -> ast.ObjStore(e1, ast.StringLit(n))
         sym("*") * gref.Expr / ast.BoxStore
         Name/ast.RefStore
         sym("&")* Name/(name) -> 
@@ -226,20 +228,26 @@ grammar = MatchGrammar extend indentG, {
         SingleQuotedString
         DoubleQuotedString
         gref.Object/ast.Object
-    }
-
-    Expr: Union {
-        gref._Expr * sym("[") * gref.Expr * sym("]")/ast.ObjLoad
-        sym("&") * gref.Assignable / ast.BoxGet
-        sym("*") * gref.Expr / ast.BoxLoad
-        gref.FuncCall
-        gref.Operator
-        gref._Expr
         gref.Function
         sym('(')* gref.Expr * sym(")")
     }
+
+    Expr: Union {
+        gref.Operator
+        gref.FuncCall
+        gref._Expr * sym("[") * gref.Expr * sym("]")/ast.ObjLoad
+        gref._Expr * sym(".") * Name/ (e1, n) -> ast.ObjLoad(e1, ast.StringLit(n))
+        sym("&") * gref.Assignable / ast.BoxGet
+        sym("*") * gref.Expr / ast.BoxLoad
+        gref._Expr
+    }
     -- Note, FuncCall is both an expression and a statement
     FuncCall: gref._Expr * sym("(") * gref.ExprList * sym(")") /ast.FuncCall
+    MethodCall: gref.Expr * sym("!") * Name * sym("(") * gref.ExprList * sym(")") / (el, n, l) -> 
+        func = ast.ObjLoad(el, ast.StringLit(n))
+        -- Add receiver to list:
+        table.insert(l, 1, table.deep_clone(el))
+        return ast.FuncCall(func, l)
     -- This form only allowed as a statement:
     FuncCallS: gref._Expr * gref.ExprListS /ast.FuncCall * OneOrMore(lineEnding)
 }

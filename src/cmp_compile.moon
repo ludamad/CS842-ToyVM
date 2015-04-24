@@ -100,6 +100,7 @@ ast.installOperation {
             when '>=' then f.gte, f.makeLValBool
             when '<=' then f.lte, f.makeLValBool
             when '==' then f.eq, f.makeLValBool
+            when '!=' then f.ne, f.makeLValBool
 --        if op ~= '=='
             --compileNumCheck(val1)
             --compileNumCheck(val2)
@@ -178,15 +179,17 @@ ast.installOperation {
     FuncCall: (f) =>
         @_compileRecurse(f)
         fVal = loadE(f, @func)
+        callSpaceN = VAL_SIZE * (@lastStackLoc + #@args)
         -- @lastStackLoc is the next stack index after the current variables
-        callSpace = f\longConst VAL_SIZE * (@lastStackLoc + #@args)
-        if (@lastStackLoc + #@args ~= f.stackPtrsUsed)
-            f\storeRelative(f.stackTopPtr, 0, f\add(f.stackFrameVal, callSpace))
+        callSpace = f\longConst callSpaceN
+        -- if (@lastStackLoc + #@args ~= f.stackPtrsUsed)
+        f\storeRelative(f.stackTopPtr, 0, f\add(f.stackFrameVal, callSpace))
         val = f\callIndirect(fVal, {f\intConst(#@args)}, lj.uint, {lj.uint})
         -- Must restore after return value changes in top pointer:
         f\storeRelative(f.stackTopPtr, 0, f.stackTopVal)
         if @isExpression
-            @compiledVal = @dest\load(f)
+            @compiledVal = f\loadRelative(f.stackFrameVal, callSpaceN - VAL_SIZE * (#@args), lj.ulong)
+            @dest\store(f, @compiledVal)
     Object: (f) =>
         -- compileVal sets dest
         @compiledVal = @compileVal(f)
@@ -211,7 +214,7 @@ M.compileFuncBody = (paramNames, ast) ->
     ast.block.scope = scope
     ast\symbolResolve(scope)
     ast\stackResolve(fb)    
-    print ast
+    -- print ast
     ast\compile(fb)
     fb\compile()
     return fb

@@ -67,8 +67,8 @@ NodeT = (t) ->
     T.__newindex = (k,v) =>
         if v == nil 
             error "Cannot add '#{k}' nil member to #{toName T.create}!"
-        if rawget @, 'initialized'
-            error "Cannot add '#{k}' to initialized object! #{toName T.create}"
+        -- if rawget @, 'initialized'
+        --     error "Cannot add '#{k}' to initialized object! #{toName T.create}"
         rawset(@, k, v)
 
     getmetatable(methods).__index = (k) =>
@@ -348,6 +348,15 @@ A.Return = StatementT {
 A.If = StatementT {
     Expr.condition
     Statement.block
+    Any.labelCheck false
+    Any.labelLoopStart false
+    Any.labelEnd false
+    __tostring: () =>
+        f = "\n#{@_indent()}if #{@condition}\n"
+        __INDENT += 1
+        f ..= table.concat(["#{@_indent()}#{v}" for v in *@block.body], '\n')
+        __INDENT -= 1
+        return f
 }
 
 A.ForNum = StatementT {

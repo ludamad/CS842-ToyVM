@@ -156,7 +156,7 @@ ast.installOperation {
         @tempDest or= StackRef() -- Our object must be stored in a value.
         for {k, v} in *@value
             v.dest or= @tempDest
-            v\symbolResolve()
+            v\symbolResolve(S)
     -- Statements:
     Assign: (S) =>
         for i=1,#@vars

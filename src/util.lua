@@ -17,6 +17,95 @@ function values(table)
     end
 end
 
+function table.merge(t1, t2)
+    for k,v in pairs(t2) do t1[k] = v end
+end
+
+local function metacopy(t1, t2)
+    local meta = getmetatable(t1)
+    if meta then
+        local copy = rawget(meta, '__copy')
+        if copy then
+            copy(t1, t2)
+            return true
+        end
+    end
+    return false
+end
+
+-- Copies 'plain-old arrays' deeply.
+function table.deep_array_copy(t1, t2)
+    for i=1,#t1 do 
+        t2[i] = t1[i] end
+    for i=#t2,#t1-1,-1 do -- Reverse for-loop to remove any excess
+        t2[i] = nil
+    end
+end
+
+function table.copy(t1, t2, invoke_meta)
+    if invoke_meta == nil then invoke_meta = true end
+    setmetatable(t2, getmetatable(t1))
+    if invoke_meta and metacopy(t1, t2) then
+        return
+    end
+
+    for k,_ in pairs(t2) do
+        t2[k] = nil
+    end
+    for k,v in pairs(t1) do
+        t2[k] = v
+    end
+end
+
+function table.deep_copy(t1, t2, invoke_meta)
+    if invoke_meta == nil then invoke_meta = true end
+    setmetatable(t2, getmetatable(t1))
+    if invoke_meta and metacopy(t1, t2) then
+        return
+    end
+
+    for k,_ in pairs(t2) do
+        if rawget(t1, k) == nil then
+            t2[k] = nil
+        end
+    end
+    for k,v in pairs(t1) do
+        if type(v) == "table" then
+            local old_val = rawget(t2, k)
+            if old_val then
+                table.deep_copy(v, old_val)
+            else
+                t2[k] = table.deep_clone(v)
+            end
+        else
+            t2[k] = v
+        end
+    end
+end
+
+function table.clone(t)
+    local meta = getmetatable(t)
+    if meta then
+        local clone = meta.__clone
+        if clone then return clone(t) end
+    end
+    local newt = {}
+    table.copy(t, newt)
+    return newt
+end
+
+function table.deep_clone(t)
+    local meta = getmetatable(t)
+    if meta then
+        local clone = rawget(meta, '__clone')
+        if clone then return clone(t) end
+    end
+    local newt = {}
+    table.deep_copy(t, newt)
+    return newt
+end
+
+
 local VERBOSITY = tonumber(os.getenv("V") or '0')
 local DO_VERBOSE = VERBOSITY >= 3
 local DO_INFO = VERBOSITY >= 2
