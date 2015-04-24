@@ -1,0 +1,159 @@
+global.List = () ->
+   obj = {val: nil, next: nil}
+   --printLn(obj.next, obj.val)
+   obj.add = (self, v) ->
+       if (self.val) == nil
+          self.val = v
+          return nil
+       if (self.next) == nil
+          self.next = (global.List)()
+       self.next!add(v)
+
+   obj.forAll = (self, context, f) ->
+        if (self.val) != nil
+            f(context, self.val)
+            if (self.next) != nil
+                self.next!forAll(context, f)
+
+   obj.length = (self) ->
+     sum = new 0
+     f = (sum, val) ->
+        *sum += 1
+     self!forAll(sum, f)
+     return *sum
+      
+   obj.print = (self) ->
+     f = (unused, val) ->
+        print((tostring(val)) .. " ")
+     print("[")
+     self!forAll(nil, f)
+     printLn("]")
+
+   obj.get = (self, i) ->
+     helper = {ind: i, val: nil}
+     f = (helper, val) ->
+        if (helper.ind) == 0
+            helper.val = val
+        helper.ind -= 1
+     self!forAll(helper, f)
+     return helper.val
+
+   obj.set = (self, i, val) ->
+        if i == 0
+            self.val = val
+            return nil
+        if (self.next) != nil
+            self.next!set(i - 1, val)
+
+   obj.copy = (self) ->
+     cpy = (global.List)()
+     f = (cpy, val) ->
+        cpy!add(val)
+     self!forAll(cpy, f)
+     return cpy
+
+   return obj
+
+
+global.INITIAL_BOARD = (global.List)()
+i = 0
+while i < 9
+    global.INITIAL_BOARD!add('-')
+    i += 1
+
+-- Extends list:
+global.TicTacToe = () ->
+    obj = (global.INITIAL_BOARD!copy())
+    obj.turn = 1
+    -- Override print:
+    obj.print = (self) ->
+        --printLn("TIC-TAC-TOE Turn " .. (tostring(self.turn)))
+
+        row = 0
+        i = 0
+        while row < 3
+            col = 0
+            while col < 3
+                print((self!get(i)))
+                col += 1
+                i += 1
+            row += 1
+            printLn()
+    obj.pickRandomMove = (self) ->
+        L = (self!length())
+        return (random(L + 1)) - 1 
+    
+
+    obj.getXY = (self, x, y) ->
+        ind = (y * 3) + x
+        return (self!get(ind))
+
+    obj.setXY = (self, x, y, val) ->
+        ind = (y * 3) + x
+        self!set(ind, val)
+
+    obj.isOver = (self) ->
+        i = 0
+        allFilled = true
+        while i < 9
+            if (self!get(i)) == '-'
+                allFilled = false
+            i += 1
+        if allFilled
+            return true
+
+        -- Try the rows:
+        row = 0
+        while row < 3
+            if (self!getXY(0, row)) != '-'
+                if (self!getXY(0, row)) == (self!getXY(1, row))
+                    if (self!getXY(0, row)) == (self!getXY(2, row))
+                        return true
+            row += 1
+            
+        -- Try the columns:
+        col = 0
+        while col < 3
+            if (self!getXY(col, 0)) != '-'
+                if (self!getXY(col, 0)) == (self!getXY(col, 1))
+                    if (self!getXY(col, 0)) == (self!getXY(col, 2))
+                        return true
+            col += 1
+
+        -- Try the diagonals:
+        if (self!getXY(1,1)) != '-'
+            if (self!getXY(0,2)) == (self!getXY(1,1))
+                if (self!getXY(0,2)) == (self!getXY(2,0))
+                    return true
+            if (self!getXY(0,0)) == (self!getXY(1,1))
+                if (self!getXY(2,2)) == (self!getXY(2,2))
+                    return true
+
+        return false
+
+    obj.pickRandomValidMove = (self) ->
+        while true
+            move = (self!pickRandomMove())
+            if (self!get(move)) == '-'
+                return move
+
+    return obj
+
+-- Play a random game:
+ticTacToe = (global.TicTacToe)()
+
+printLn("------")
+while (ticTacToe!isOver()) == false
+    ticTacToe!print()
+    printLn("------")
+    m = (ticTacToe!pickRandomValidMove())
+    if ((ticTacToe.turn) % 2) == 0
+        ticTacToe!set(m, 'X')
+    if ((ticTacToe.turn) % 2) == 1
+        ticTacToe!set(m, 'O')
+    ticTacToe.turn += 1
+
+ticTacToe!print()
+printLn("------")
+printLn("GAME OVER")
+

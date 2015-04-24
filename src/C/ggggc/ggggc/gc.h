@@ -36,9 +36,9 @@ extern "C" {
 
 /* debugging flags */
 #ifdef GGGGC_DEBUG
-#define GGGGC_DEBUG_MEMORY_CORRUPTION 1
-#define GGGGC_DEBUG_REPORT_COLLECTIONS 1
-#define GGGGC_DEBUG_TINY_HEAP 1
+#define GGGGC_DEBUG_MEMORY_CORRUPTION 0
+#define GGGGC_DEBUG_REPORT_COLLECTIONS 0
+#define GGGGC_DEBUG_TINY_HEAP 0
 #endif
 
 /* flags to disable GCC features */
@@ -57,7 +57,7 @@ typedef size_t ggc_size_t;
 #endif
 
 #ifndef GGGGC_POOL_SIZE
-#define GGGGC_POOL_SIZE 24 /* pool size as a power of 2 */
+#define GGGGC_POOL_SIZE 29 /* pool size as a power of 2 */
 #endif
 
 #ifndef GGGGC_CARD_SIZE

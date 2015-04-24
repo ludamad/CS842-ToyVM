@@ -84,6 +84,7 @@ makeGlobalScope = (ljContext) ->
           librun.langStringPrint(asString)
       elseif matchesType(ptr, objectType[0])
           io.write "<object>"
+      io.flush()
           --librun.langStringPrint(asString)
 
     -- Runtime functions.
@@ -102,6 +103,14 @@ makeGlobalScope = (ljContext) ->
           s = io.read("*line")
           sVal = librun.langStringCopy(s, #s)
           return setRet(n, sVal, "LangString*")
+        random: (n) ->
+          assert n == 1, "random takes 1 argument!"
+          argPtr = getArgs(n)
+          conv = ffi.new("LangValue[1]")
+          conv[0].tag = C.TYPE_TAG_INT
+          conv[0].val = math.random(argPtr[0].val)
+          return setRet(n, ffi.cast("LangString**", conv)[0], "LangString*")
+
         print: (n) ->
            log "#{n} args to print"
            args = getArgs(n)
@@ -110,6 +119,7 @@ makeGlobalScope = (ljContext) ->
               if i >= 1 
                   io.write '\t'
               printVal(args + i)
+           io.flush()
            return 0
         printLn: (n) ->
            log "#{n} args to printLn"
@@ -120,6 +130,7 @@ makeGlobalScope = (ljContext) ->
                   io.write '\t'
               printVal(args + i)
            io.write('\n')
+           io.flush()
            return 0
     }
 

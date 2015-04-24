@@ -1,5 +1,5 @@
 cd src/C/
-./build.sh
+./build.sh > /dev/null
 cp `find -name '*.so'` ../../build/
 cd ../..
 luajit src/loader.lua $@

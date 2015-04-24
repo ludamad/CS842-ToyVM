@@ -1,0 +1,83 @@
+-- The language is finnicky to use because of a sensitive parser, but can mostly be worked around with liberable parens. It is fairly featureful.
+
+printLn("Showing off the features of $LANG...")
+printLn()
+factorialIter = (n) ->
+    i = 1
+    accum = n
+    while i < n
+        accum *= i 
+        i += 1
+    return accum
+
+V = factorialIter(10)
+printLn("Factorial (iterative) of 10: ", V)
+
+-- Global variables are stored in a simple constant table 'global'.
+global.factorialRec = (n) ->
+    if n < 2
+        return n
+    return n * (global.factorialRec)(n - 1)
+
+V = (global.factorialRec)(10)
+printLn("Factorial (recursive) of 10: ", V)
+
+global.List = () ->
+   obj = {val: nil, next: nil}
+   --printLn(obj.next, obj.val)
+   obj.add = (self, v) ->
+       if (self.val) == nil
+          self.val = v
+          return nil
+       if (self.next) == nil
+          self.next = (global.List)()
+       self.next!add(v)
+   obj.forAll = (self, context, f) ->
+        if (self.val) != nil
+            f(context, self.val)
+            if (self.next) != nil
+                self.next!forAll(context, f)
+
+   obj.length = (self) ->
+     sum = new 0
+     f = (sum, val) ->
+        *sum += 1
+     self!forAll(sum, f)
+     return *sum
+      
+   obj.print = (self) ->
+     f = (unused, val) ->
+        print((tostring(val)) .. " ")
+     print("[")
+     self!forAll(nil, f)
+     printLn("]")
+
+   return obj
+
+printLn()
+printLn("Used-defined list manipulation:")
+l = (global.List)()
+l!add(2)
+l!add(1)
+l!add("hi")
+l!add(false)
+
+l!print()
+
+printLn()
+printLn("Used-defined list length:")
+
+printLn("Length is", (l!length()))
+
+printLn()
+printLn("Used-defined list copying:")
+
+copy = (global.List)()
+copyF = (self, val) ->
+    self!add(val)
+    printLn("Copying: " .. tostring(val))
+l!forAll(copy, copyF)
+print("Copy: ")
+copy!print()
+
+

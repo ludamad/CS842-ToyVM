@@ -218,7 +218,6 @@ size_t langObjectGetMemberIndex(void **pstack, LangObject object,
 
 	shape = GGC_RP(object, shape);
 
-	
 	/* first, check if it is a known cached shape and member for which we remember the index */
 	if (cache
 			!= NULL&& shape == GGC_RP(*cache, cachedShape) && member == GGC_RP(*cache, cachedMember)) {

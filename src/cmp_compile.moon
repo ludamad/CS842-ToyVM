@@ -149,7 +149,7 @@ ast.installOperation {
     FuncBody: (f) =>
         -- Are we the function being compiled?
         if @functionBuilder
-            print("Funcbody")
+  
             f\compileFuncPrelude()
             @block\compile(f)
             f\compileFuncReturn({})

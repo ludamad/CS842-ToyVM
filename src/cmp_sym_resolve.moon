@@ -45,7 +45,6 @@ M.Variable = newtype {
     parent: StackRef
     init: (@name, @boxed = false) =>
         assert(type @name == "string")
-        pretty @name
         StackRef.init(@)
     link: (astNode) =>
         astNode.dest or= StackRef()

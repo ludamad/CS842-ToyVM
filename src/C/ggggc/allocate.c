@@ -16,6 +16,8 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <stdio.h>
+#include <stdlib.h>
 #define _BSD_SOURCE /* for MAP_ANON */
 
 /* for standards info */
@@ -223,6 +225,8 @@ retry:
     } else {
         /* need to collect, which means we need to actually be a GC-safe function */
         GGC_PUSH_1(descriptor);
+        fprintf(stderr, "ABORT: Would have garbage collected. Undefined behaviour.\n");
+        abort();
         ggggc_collect0(0);
         GGC_POP();
         pool = ggggc_pool0;

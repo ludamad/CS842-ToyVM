@@ -10,6 +10,8 @@ rt = require "runtime"
 ansiCol = require "system.AnsiColors"
 import LangContext, compileFuncBody, parse from require "cmp"
 
+math.randomseed(os.time())
+
 --------------------------------------------------------------------------------
 -- Runtime initialization
 --------------------------------------------------------------------------------
@@ -17,12 +19,12 @@ import LangContext, compileFuncBody, parse from require "cmp"
 grayPrint  = (s) -> print ansiCol.WHITE(s,ansiCol.FAINT)
 compileString = (str) ->
     ast = parse(str)
-    grayPrint '-- Bare Parse Tree ---------------------------------------------------------------------------'
     fb = compileFuncBody({}, ast)
     cFunc = fb\toCFunction()
-    grayPrint '-- Stack Allocated Tree ----------------------------------------------------------------------'
-    print(ast)
-    grayPrint '-- Running -----------------------------------------------------------------------------------'
+    if os.getenv("SHOW_AST")
+        grayPrint '-- Stack Allocated Tree ----------------------------------------------------------------------'
+        print(ast)
+        grayPrint '-- Running -----------------------------------------------------------------------------------'
     -- print fb\smartDump()
     return () -> cFunc(0)
 
